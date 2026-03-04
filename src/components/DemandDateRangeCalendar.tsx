@@ -35,17 +35,20 @@ export function DemandDateRangeCalendar({ startDate, dueDate }: DemandDateRangeC
         selected={range}
         onSelect={() => {}}
         locale={ptBR}
-        className="w-full max-w-none rounded-md border-0"
+        className="w-full max-w-none rounded-md border-0 demand-date-range-calendar"
         classNames={{
-          day_range_start: "rounded-l-md bg-primary text-primary-foreground",
-          day_range_end: "rounded-r-md bg-primary text-primary-foreground",
-          day_range_middle: "bg-primary/20 text-primary-foreground",
+          day_range_start:
+            "rounded-full bg-destructive text-destructive-foreground hover:bg-destructive hover:text-destructive-foreground focus:bg-destructive focus:text-destructive-foreground",
+          day_range_end:
+            "rounded-full bg-destructive text-destructive-foreground hover:bg-destructive hover:text-destructive-foreground focus:bg-destructive focus:text-destructive-foreground",
+          day_range_middle:
+            "demand-range-middle-day w-full h-full min-w-full min-h-full rounded-none bg-destructive/25 text-foreground hover:bg-destructive/25 focus:bg-destructive/25",
         }}
         disabled={(date) => date < startOfDay(new Date())}
       />
       <div className="mt-2 flex flex-wrap items-center justify-center gap-3 text-xs text-muted-foreground">
         <span className="flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-sm bg-primary" />
+          <span className="h-2.5 w-2.5 rounded-full bg-destructive" />
           Início → Término
         </span>
       </div>

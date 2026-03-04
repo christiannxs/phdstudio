@@ -101,3 +101,15 @@ All colors MUST be HSL.
     @apply bg-background text-foreground min-h-screen;
   }
 }
+
+/* Calendário de período: faixa contínua entre início e término */
+.demand-date-range-calendar [role="gridcell"]:has(.demand-range-middle-day) {
+  background: hsl(var(--destructive) / 0.25);
+}
+.demand-date-range-calendar .demand-range-middle-day {
+  background: transparent;
+}
+.demand-date-range-calendar .demand-range-middle-day:hover,
+.demand-date-range-calendar .demand-range-middle-day:focus {
+  background: hsl(var(--destructive) / 0.3);
+}
