@@ -10,6 +10,7 @@ import { useProducers } from "@/hooks/useProducers";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { DemandDateRangeCalendar } from "@/components/DemandDateRangeCalendar";
 import { ARTISTS } from "@/lib/artists";
 import { toast as sonnerToast } from "sonner";
 
@@ -22,6 +23,7 @@ export interface DemandForEdit {
   status: string;
   start_at: string | null;
   due_at: string | null;
+  created_by?: string | null;
 }
 
 interface Props {
@@ -29,9 +31,11 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onUpdated: () => void;
+  /** Quando true, exibe somente leitura (visualizar), sem botão salvar. */
+  readOnly?: boolean;
 }
 
-export default function EditDemandDialog({ demand, open, onOpenChange, onUpdated }: Props) {
+export default function EditDemandDialog({ demand, open, onOpenChange, onUpdated, readOnly = false }: Props) {
   const { role, user } = useAuth();
   const { data: producers = [] } = useProducers(role);
   const [artist, setArtist] = useState("");
@@ -64,7 +68,7 @@ export default function EditDemandDialog({ demand, open, onOpenChange, onUpdated
       setStartTime(start.time);
       setDueDate(due.date);
       setDueTime(due.time);
-      setCanEditDatesAndDetails(user?.id === (demand as any).created_by);
+      setCanEditDatesAndDetails(user?.id === demand.created_by);
     }
   }, [demand, user?.id]);
 
@@ -118,14 +122,14 @@ export default function EditDemandDialog({ demand, open, onOpenChange, onUpdated
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] flex flex-col overflow-hidden gap-0 p-0">
         <DialogHeader className="shrink-0 px-6 pt-6 pb-2">
-          <DialogTitle>Editar Demanda</DialogTitle>
+          <DialogTitle>{readOnly ? "Visualizar demanda" : "Editar Demanda"}</DialogTitle>
         </DialogHeader>
         {demand && (
           <div className="overflow-y-auto flex-1 min-h-0 px-6 pb-6">
           <form onSubmit={handleSubmit} className="space-y-4 pr-1">
             <div className="space-y-2">
               <Label>Artista</Label>
-              <Select value={artist} onValueChange={setArtist}>
+              <Select value={artist} onValueChange={setArtist} disabled={readOnly}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione o artista" />
                 </SelectTrigger>
@@ -144,6 +148,9 @@ export default function EditDemandDialog({ demand, open, onOpenChange, onUpdated
                 onChange={(e) => setName(e.target.value)}
                 required
                 placeholder="Ex: Beat Trap para artista X"
+                disabled={readOnly}
+                readOnly={readOnly}
+                className={readOnly ? "bg-muted/50" : ""}
               />
             </div>
             <div className="space-y-2">
@@ -153,6 +160,9 @@ export default function EditDemandDialog({ demand, open, onOpenChange, onUpdated
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Detalhes sobre a demanda..."
+                disabled={readOnly}
+                readOnly={readOnly}
+                className={readOnly ? "bg-muted/50" : ""}
               />
             </div>
             <Card className="border-muted bg-muted/30">
@@ -171,6 +181,9 @@ export default function EditDemandDialog({ demand, open, onOpenChange, onUpdated
                         value={startDate}
                         onChange={(e) => setStartDate(e.target.value)}
                         required={canEditDatesAndDetails}
+                        disabled={readOnly}
+                        readOnly={readOnly}
+                        className={readOnly ? "bg-muted/50" : ""}
                       />
                     </div>
                     <div className="space-y-1.5">
@@ -181,6 +194,9 @@ export default function EditDemandDialog({ demand, open, onOpenChange, onUpdated
                         value={startTime}
                         onChange={(e) => setStartTime(e.target.value)}
                         required={canEditDatesAndDetails}
+                        disabled={readOnly}
+                        readOnly={readOnly}
+                        className={readOnly ? "bg-muted/50" : ""}
                       />
                     </div>
                   </div>
@@ -196,6 +212,9 @@ export default function EditDemandDialog({ demand, open, onOpenChange, onUpdated
                         value={dueDate}
                         onChange={(e) => setDueDate(e.target.value)}
                         required={canEditDatesAndDetails}
+                        disabled={readOnly}
+                        readOnly={readOnly}
+                        className={readOnly ? "bg-muted/50" : ""}
                       />
                     </div>
                     <div className="space-y-1.5">
@@ -206,16 +225,19 @@ export default function EditDemandDialog({ demand, open, onOpenChange, onUpdated
                         value={dueTime}
                         onChange={(e) => setDueTime(e.target.value)}
                         required={canEditDatesAndDetails}
+                        disabled={readOnly}
+                        readOnly={readOnly}
+                        className={readOnly ? "bg-muted/50" : ""}
                       />
                     </div>
                   </div>
                 </div>
-                <DemandDateRangeCalendar startDate={startDate} dueDate={dueDate} />
+                {!readOnly && <DemandDateRangeCalendar startDate={startDate} dueDate={dueDate} />}
               </CardContent>
             </Card>
             <div className="space-y-2">
               <Label>Produtor</Label>
-              <Select value={producer} onValueChange={setProducer} required disabled={producers.length === 0}>
+              <Select value={producer} onValueChange={setProducer} required disabled={producers.length === 0 || readOnly}>
                 <SelectTrigger>
                   <SelectValue placeholder={producers.length === 0 ? "Nenhum produtor cadastrado" : "Selecione o produtor"} />
                 </SelectTrigger>
@@ -228,7 +250,7 @@ export default function EditDemandDialog({ demand, open, onOpenChange, onUpdated
             </div>
             <div className="space-y-2">
               <Label>Status</Label>
-              <Select value={status} onValueChange={setStatus}>
+              <Select value={status} onValueChange={setStatus} disabled={readOnly}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -239,9 +261,15 @@ export default function EditDemandDialog({ demand, open, onOpenChange, onUpdated
                 </SelectContent>
               </Select>
             </div>
-            <Button type="submit" className="w-full" disabled={submitting || !producer || producers.length === 0}>
-              {submitting ? "Salvando..." : "Salvar alterações"}
-            </Button>
+            {readOnly ? (
+              <Button type="button" variant="secondary" className="w-full" onClick={() => onOpenChange(false)}>
+                Fechar
+              </Button>
+            ) : (
+              <Button type="submit" className="w-full" disabled={submitting || !producer || producers.length === 0}>
+                {submitting ? "Salvando..." : "Salvar alterações"}
+              </Button>
+            )}
           </form>
           </div>
         )}

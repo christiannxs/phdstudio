@@ -108,7 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return null;
     };
 
-    let token = await getValidToken();
+    const token = await getValidToken();
     if (!token) {
       return { error: new Error("Sessão inválida. Faça login novamente.") };
     }

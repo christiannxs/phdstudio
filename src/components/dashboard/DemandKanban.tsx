@@ -71,14 +71,17 @@ export default function DemandKanban({
   }, [deliverables]);
 
   return (
-    <div className="overflow-x-auto pb-2 -mx-1 px-1">
-      <div className="flex gap-5 min-w-max items-stretch">
+    <div className="w-full min-w-0 overflow-x-auto pb-2 -mx-1 px-1">
+      <div
+        className="grid gap-4 sm:gap-5 items-stretch w-full"
+        style={{ gridTemplateColumns: "repeat(3, minmax(280px, 1fr))" }}
+      >
         {KANBAN_COLUMNS.map((col) => {
           const items = byStatus[col.id];
           return (
             <div
               key={col.id}
-              className={`flex w-[380px] min-w-[380px] max-w-[380px] h-[calc(100vh-240px)] shrink-0 flex-col rounded-xl border overflow-hidden ${col.accentClass}`}
+              className={`flex min-w-0 min-h-[400px] h-[calc(100vh-240px)] flex-col rounded-xl border overflow-hidden ${col.accentClass}`}
             >
               <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border/50 shrink-0">
                 <span className="flex items-center gap-2 font-semibold text-sm text-foreground whitespace-nowrap">

@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LogOut, LayoutDashboard, UserPlus, AlertTriangle, FileBarChart } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { LogOut, LayoutDashboard, UserPlus, AlertTriangle, FileBarChart, CalendarDays, CalendarRange } from "lucide-react";
 import UserManagement from "@/components/UserManagement";
 import ProducerAvailabilityCalendar from "@/components/ProducerAvailabilityCalendar";
-import ProducerAvailabilityView from "@/components/ProducerAvailabilityView";
+import { DemandCalendarTimeline } from "@/components/dashboard/DemandCalendarTimeline";
 import DemandStatsCards from "@/components/dashboard/DemandStatsCards";
 import DemandFilters from "@/components/dashboard/DemandFilters";
 import DemandKanban from "@/components/dashboard/DemandKanban";
@@ -35,6 +37,8 @@ export interface DemandTabContentProps {
   updatingId: string | null;
   editingDemand: DemandRow | null;
   setEditingDemand: (d: DemandRow | null) => void;
+  /** Clique na barra da timeline abre visualização (somente leitura). */
+  onViewDemand?: (d: DemandRow) => void;
   refetch: () => void;
   updateStatusMutation: UseMutationResult<void, Error, { id: string; status: "aguardando" | "em_producao" | "concluido" }, unknown>;
   updatePhaseMutation: UseMutationResult<void, Error, { id: string; phase: "phase_producao" | "phase_gravacao" | "phase_mix_master"; checked: boolean }, unknown>;
@@ -68,6 +72,7 @@ export default function DemandTabContent({
   updatingId,
   editingDemand,
   setEditingDemand,
+  onViewDemand,
   refetch,
   updateStatusMutation,
   updatePhaseMutation,
@@ -77,15 +82,105 @@ export default function DemandTabContent({
   roleLabel,
   onOpenCreateDialog,
 }: DemandTabContentProps) {
+  const [calendarProducer, setCalendarProducer] = useState<string>("all");
+  const [availabilityView, setAvailabilityView] = useState<"calendar" | "timeline-calendar">("timeline-calendar");
+
+  const demandsForCalendar =
+    role === "produtor" && displayName
+      ? demands.filter((d) => d.producer_name === displayName)
+      : role === "ceo" || role === "atendente" || role === "admin"
+        ? calendarProducer === "all"
+          ? demands
+          : demands.filter((d) => d.producer_name === calendarProducer)
+        : [];
+
   const availabilitySection =
     role === "produtor" && userId ? (
-      <ProducerAvailabilityCalendar
-        userId={userId}
-        onEditDemand={setEditingDemand}
-        onAddDemandWithDate={onOpenCreateDialog ? (date) => onOpenCreateDialog(date) : undefined}
-      />
+      <div className="space-y-3">
+        <Tabs value={availabilityView} onValueChange={(v) => setAvailabilityView(v as "calendar" | "timeline-calendar")}>
+          <TabsList className="h-9 flex-wrap">
+            <TabsTrigger value="timeline-calendar" className="gap-2">
+              <CalendarRange className="h-4 w-4" />
+              Timeline calendário
+            </TabsTrigger>
+            <TabsTrigger value="calendar" className="gap-2">
+              <CalendarDays className="h-4 w-4" />
+              Calendário
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value="timeline-calendar" className="mt-3">
+            <DemandCalendarTimeline
+              demands={demandsForCalendar}
+              isLoading={demandsLoading}
+              onViewDemand={onViewDemand}
+              title="Timeline em forma de calendário"
+              description="Cada barra = período ocupado (início → término). Conectado à lista de demandas: as que já existem e as que forem criadas aparecem aqui."
+            />
+          </TabsContent>
+          <TabsContent value="calendar" className="mt-3">
+            <ProducerAvailabilityCalendar
+              userId={userId}
+              demands={demandsForCalendar}
+              isLoading={demandsLoading}
+              onEditDemand={setEditingDemand}
+              onAddDemandWithDate={onOpenCreateDialog ? (date) => onOpenCreateDialog(date) : undefined}
+              title="Quando estou ocupado"
+              description="Cada faixa = período em que você está ocupado (do início ao término da entrega). Clique em um dia para ver os períodos que atravessam esse dia."
+            />
+          </TabsContent>
+        </Tabs>
+      </div>
     ) : role === "ceo" || role === "atendente" || role === "admin" ? (
-      <ProducerAvailabilityView />
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="text-sm font-medium text-muted-foreground">Produtor</label>
+            <Select value={calendarProducer} onValueChange={setCalendarProducer}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Todos os produtores" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os produtores</SelectItem>
+                {producers.map((name) => (
+                  <SelectItem key={name} value={name}>{name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Tabs value={availabilityView} onValueChange={(v) => setAvailabilityView(v as "calendar" | "timeline-calendar")}>
+            <TabsList className="h-9 flex-wrap">
+              <TabsTrigger value="timeline-calendar" className="gap-2">
+                <CalendarRange className="h-4 w-4" />
+                Timeline calendário
+              </TabsTrigger>
+              <TabsTrigger value="calendar" className="gap-2">
+                <CalendarDays className="h-4 w-4" />
+                Calendário
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+        {availabilityView === "timeline-calendar" ? (
+          <DemandCalendarTimeline
+            demands={demandsForCalendar}
+            isLoading={demandsLoading}
+            onViewDemand={onViewDemand}
+            title="Timeline em forma de calendário"
+            description="Cada barra = período ocupado (início → término). Conectado à lista de demandas: as que já existem e as que forem criadas aparecem aqui."
+            groupByProducer={calendarProducer === "all"}
+          />
+        ) : (
+          <ProducerAvailabilityCalendar
+            userId=""
+            demands={demandsForCalendar}
+            isLoading={demandsLoading}
+            onEditDemand={setEditingDemand}
+            title="Quando cada produtor está ocupado"
+            description="Cada faixa = período em que o produtor está ocupado (do início ao término da entrega). Clique em um dia para ver os períodos que atravessam esse dia."
+            showProducerFilter
+          />
+        )}
+      </div>
     ) : null;
 
   const demandsContent = (
@@ -99,7 +194,10 @@ export default function DemandTabContent({
 
       {availabilitySection && (
         <section className="rounded-xl border border-border bg-card/50 p-4 sm:p-5">
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Disponibilidade</h3>
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Ocupação</h3>
+          <p className="text-xs text-muted-foreground mb-3">
+            Cada demanda com data de início e término deixa o produtor ocupado nesse período até a entrega.
+          </p>
           {availabilitySection}
         </section>
       )}
@@ -208,7 +306,7 @@ export default function DemandTabContent({
             </Button>
           </div>
         </header>
-        <main className="mx-auto max-w-6xl px-4 py-6 space-y-6">
+        <main className="w-full max-w-[1920px] mx-auto px-4 py-6 space-y-6">
           {demandsContent}
         </main>
       </>
@@ -234,7 +332,7 @@ export default function DemandTabContent({
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-6 space-y-6">
+      <main className="w-full max-w-[1920px] mx-auto px-4 py-6 space-y-6">
         <Tabs defaultValue="demandas" className="space-y-6">
           <div className="flex items-center justify-between">
             <TabsList className={showUserManagement ? "h-11 flex-wrap" : "h-11"}>

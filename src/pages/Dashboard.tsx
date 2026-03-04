@@ -30,6 +30,7 @@ export default function Dashboard() {
 
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [editingDemand, setEditingDemand] = useState<DemandRow | null>(null);
+  const [viewingDemand, setViewingDemand] = useState<DemandRow | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [createInitialDueDate, setCreateInitialDueDate] = useState<Date | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>("all");
@@ -86,7 +87,16 @@ export default function Dashboard() {
     concluido: demands.filter((d) => d.status === "concluido").length,
   };
 
-  const roleLabel = role === "atendente" ? "Atendente" : role === "produtor" ? "Produtor" : role === "admin" ? "Desenvolvedor" : "CEO";
+  const roleLabel =
+    role === "atendente"
+      ? "Atendente"
+      : role === "produtor"
+        ? "Produtor"
+        : role === "admin"
+          ? "Desenvolvedor"
+          : role === "ceo"
+            ? "CEO"
+            : "Sem perfil";
 
   const handleStatusCardClick = (status: string) => {
     setFilterStatus((prev) => (prev === status ? "all" : status));
@@ -137,6 +147,7 @@ export default function Dashboard() {
         updatingId={updatingId}
         editingDemand={editingDemand}
         setEditingDemand={setEditingDemand}
+        onViewDemand={setViewingDemand}
         refetch={refetch}
         updateStatusMutation={updateStatusMutation}
         updatePhaseMutation={updatePhaseMutation}
@@ -156,10 +167,16 @@ export default function Dashboard() {
         onCreated={() => { refetch(); setCreateDialogOpen(false); setCreateInitialDueDate(null); }}
       />
       <EditDemandDialog
-        demand={editingDemand}
-        open={!!editingDemand}
-        onOpenChange={(open) => !open && setEditingDemand(null)}
-        onUpdated={() => { refetch(); setEditingDemand(null); }}
+        demand={editingDemand ?? viewingDemand}
+        open={!!editingDemand || !!viewingDemand}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingDemand(null);
+            setViewingDemand(null);
+          }
+        }}
+        onUpdated={() => { refetch(); setEditingDemand(null); setViewingDemand(null); }}
+        readOnly={!!viewingDemand}
       />
     </div>
   );
