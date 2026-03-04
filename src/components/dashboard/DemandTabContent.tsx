@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { LogOut, LayoutDashboard, UserPlus, AlertTriangle, FileBarChart, CalendarDays, CalendarRange } from "lucide-react";
+import { LogOut, LayoutDashboard, UserPlus, AlertTriangle, FileBarChart, CalendarDays, CalendarRange, AlertCircle } from "lucide-react";
 import UserManagement from "@/components/UserManagement";
 import ProducerAvailabilityCalendar from "@/components/ProducerAvailabilityCalendar";
 import { DemandCalendarTimeline } from "@/components/dashboard/DemandCalendarTimeline";
@@ -23,6 +23,9 @@ export interface DemandTabContentProps {
   deliverables: DeliverableRow[];
   demandsForReport: DemandRow[];
   demandsLoading: boolean;
+  demandsError?: boolean;
+  demandsErrorDetail?: Error | null;
+  onRetryDemands?: () => void;
   filtered: DemandRow[];
   counts: { aguardando: number; em_producao: number; concluido: number };
   dueSoonCount: number;
@@ -58,6 +61,9 @@ export default function DemandTabContent({
   deliverables,
   demandsForReport,
   demandsLoading,
+  demandsError,
+  demandsErrorDetail,
+  onRetryDemands,
   filtered,
   counts,
   dueSoonCount,
@@ -240,7 +246,25 @@ export default function DemandTabContent({
       </section>
 
       <section className="space-y-4">
-        {demandsLoading ? (
+        {demandsError ? (
+          <div
+            role="alert"
+            className="flex flex-col items-center justify-center py-16 px-4 rounded-xl border border-destructive/40 bg-destructive/5 gap-4 text-center"
+          >
+            <AlertCircle className="h-12 w-12 text-destructive shrink-0" />
+            <div>
+              <p className="font-medium text-foreground">Falha ao carregar demandas</p>
+              <p className="text-sm text-muted-foreground mt-1 max-w-md">
+                {demandsErrorDetail instanceof Error ? demandsErrorDetail.message : "Verifique sua conexão e tente novamente."}
+              </p>
+            </div>
+            {onRetryDemands && (
+              <Button variant="outline" onClick={onRetryDemands}>
+                Tentar novamente
+              </Button>
+            )}
+          </div>
+        ) : demandsLoading ? (
           <div className="flex flex-col items-center justify-center py-16 gap-4">
             <div className="animate-spin h-10 w-10 border-2 border-primary border-t-transparent rounded-full" />
             <p className="text-sm text-muted-foreground">Carregando demandas...</p>

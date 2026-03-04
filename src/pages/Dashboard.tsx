@@ -22,6 +22,8 @@ export default function Dashboard() {
     demands,
     deliverables,
     isLoading: demandsLoading,
+    isError: demandsError,
+    error: demandsErrorDetail,
     refetch,
     updateStatusMutation,
     updatePhaseMutation,
@@ -133,6 +135,9 @@ export default function Dashboard() {
         deliverables={deliverables}
         demandsForReport={demandsForReport}
         demandsLoading={demandsLoading}
+        demandsError={demandsError}
+        demandsErrorDetail={demandsErrorDetail}
+        onRetryDemands={refetch}
         filtered={filtered}
         counts={counts}
         dueSoonCount={dueSoonCount}

@@ -79,11 +79,15 @@ export function useDemands() {
   const demands = demandsQuery.data ?? [];
   const deliverables = deliverablesQuery.data ?? [];
   const isLoading = demandsQuery.isLoading;
+  const isError = demandsQuery.isError || deliverablesQuery.isError;
+  const error = demandsQuery.error ?? deliverablesQuery.error;
 
   return {
     demands,
     deliverables,
     isLoading,
+    isError,
+    error,
     refetch,
     updateStatusMutation,
     updatePhaseMutation,

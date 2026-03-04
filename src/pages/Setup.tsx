@@ -11,7 +11,7 @@ import { toast } from "sonner";
 export default function Setup() {
   const navigate = useNavigate();
   const { signUpWithRole, user } = useAuth();
-  const { data: setupStatus, isLoading: setupLoading, isError: setupError } = useSetupStatus();
+  const { data: setupStatus, isLoading: setupLoading, isError: setupError, refetch: refetchSetup } = useSetupStatus();
   const setSetupCompleteMutation = useSetSetupComplete();
 
   const [email, setEmail] = useState("");
@@ -29,6 +29,28 @@ export default function Setup() {
 
   if (setupStatus?.complete && !setupError) {
     return <Navigate to={user ? "/dashboard" : "/auth"} replace />;
+  }
+
+  if (setupError) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-accent p-4">
+        <Card className="w-full max-w-md border-destructive/30 bg-destructive/5">
+          <CardHeader className="text-center pb-2">
+            <CardDescription className="text-destructive font-semibold text-sm">
+              Erro ao conectar
+            </CardDescription>
+            <p className="text-sm text-muted-foreground mt-1">
+              Não foi possível verificar o status da configuração. Verifique sua conexão com a internet e se o Supabase está acessível.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <Button className="w-full" onClick={() => refetchSetup()}>
+              Tentar novamente
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   const handleCreateAdmin = async (e: React.FormEvent) => {
