@@ -52,6 +52,8 @@ export default function EditDemandDialog({ demand, open, onOpenChange, onUpdated
 
   const isoToDateAndTime = (iso: string | null) => {
     if (!iso) return { date: "", time: "" };
+    const date = new Date(iso);
+    if (isNaN(date.getTime())) return { date: "", time: "" };
     return { date: iso.slice(0, 10), time: iso.slice(11, 16) };
   };
 

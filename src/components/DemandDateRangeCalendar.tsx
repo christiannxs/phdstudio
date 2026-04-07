@@ -17,8 +17,10 @@ export function DemandDateRangeCalendar({ startDate, dueDate }: DemandDateRangeC
   const range = useMemo((): DateRange | undefined => {
     if (!startDate?.trim()) return undefined;
     const from = startOfDay(new Date(startDate));
+    if (isNaN(from.getTime())) return undefined;
     if (!dueDate?.trim()) return { from };
     const to = startOfDay(new Date(dueDate));
+    if (isNaN(to.getTime())) return { from };
     if (from > to) return { from };
     return { from, to };
   }, [startDate, dueDate]);
