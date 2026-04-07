@@ -15,6 +15,7 @@ interface DemandBarProps {
   overflowCount?: number;
   overflowDemandNames?: string[];
   canEdit?: boolean;
+  compact?: boolean;
 }
 
 export function DemandBar({
@@ -23,6 +24,7 @@ export function DemandBar({
   overflowCount,
   overflowDemandNames = [],
   canEdit = false,
+  compact = false,
 }: DemandBarProps) {
   const { type, isSingleDay, startTime, endTime, demand } = segment;
   const isStart = type === "start";
@@ -53,8 +55,8 @@ export function DemandBar({
           roundedRight && "rounded-r-sm"
         )}
         style={{
-          top: `${trackIndex * (TRACK_HEIGHT + TRACK_GAP)}px`,
-          height: TRACK_HEIGHT,
+          top: `${trackIndex * ((compact ? 6 : TRACK_HEIGHT) + TRACK_GAP)}px`,
+          height: compact ? 6 : TRACK_HEIGHT,
           left: "-2px",
           right: "-2px",
         }}
@@ -67,7 +69,9 @@ export function DemandBar({
             roundedRight && "rounded-r-sm"
           )}
         >
-          {isOverflow ? (
+          {compact ? (
+            <span className="sr-only">{demand.name}</span>
+          ) : isOverflow ? (
             <span className="text-[9px] font-semibold text-destructive truncate">
               +{overflowCount} demandas
             </span>
@@ -106,6 +110,7 @@ const MAX_TRACKS = 6;
 export function DemandBarList({
   segments,
   demandTracks,
+  compact = false,
   canEdit = false,
 }: DemandBarListProps) {
   if (segments.length === 0) return null;
@@ -114,20 +119,22 @@ export function DemandBarList({
     .map((seg) => ({ seg, track: demandTracks[seg.demandId] ?? 0 }))
     .sort((a, b) => a.track - b.track);
 
-  const visible = withTrack.filter(({ track }) => track < MAX_TRACKS);
+  const maxTracks = compact ? 2 : MAX_TRACKS;
+  const trackHeight = compact ? 6 : TRACK_HEIGHT;
+  const visible = withTrack.filter(({ track }) => track < maxTracks);
   const overflowCount = withTrack.length - visible.length;
   const hasOverflow = overflowCount > 0;
-  const overflowSegments = withTrack.filter(({ track }) => track >= MAX_TRACKS);
+  const overflowSegments = withTrack.filter(({ track }) => track >= maxTracks);
   const overflowDemandNames = overflowSegments.map(({ seg }) => seg.demand.name);
 
   const tracksToRender =
-    hasOverflow && visible.length < MAX_TRACKS
+    hasOverflow && visible.length < maxTracks
       ? visible.length + 1
       : visible.length;
   const containerHeight =
-    tracksToRender * (TRACK_HEIGHT + TRACK_GAP) - TRACK_GAP;
+    tracksToRender * (trackHeight + TRACK_GAP) - TRACK_GAP;
 
-  const showCountLabel = segments.length > 1 && !hasOverflow;
+  const showCountLabel = !compact && segments.length > 1 && !hasOverflow;
 
   return (
     <div className="flex flex-col w-full gap-0.5 flex-shrink-0">
@@ -146,6 +153,7 @@ export function DemandBarList({
             segment={seg}
             trackIndex={track}
             canEdit={canEdit}
+            compact={compact}
           />
         ))}
         {hasOverflow && (
@@ -155,6 +163,7 @@ export function DemandBarList({
             overflowCount={overflowCount}
             overflowDemandNames={overflowDemandNames}
             canEdit={canEdit}
+            compact={compact}
           />
         )}
       </div>

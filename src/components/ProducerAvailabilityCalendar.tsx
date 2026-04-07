@@ -6,13 +6,12 @@ import { Day as DayPickerDay } from "react-day-picker";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { CalendarDays, Pencil, Play, Plus, Square } from "lucide-react";
+import { CalendarDays, Clock3, Pencil, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/hooks/useAuth";
 import { useDemands } from "@/hooks/useDemands";
-import { demandsToDaysMap, getDemandTracks, type DemandsByDayMap } from "@/lib/demandsCalendar";
-import { DemandBarList } from "@/components/dashboard/DemandBar";
+import { demandsToDaysMap, type DemandsByDayMap } from "@/lib/demandsCalendar";
 import type { DemandRow } from "@/types/demands";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface Props {
   userId: string;
@@ -41,14 +40,15 @@ export default function ProducerAvailabilityCalendar({
   isLoading = false,
   onEditDemand,
   onAddDemandWithDate,
-  title = "Quando estou ocupado",
-  description = "Cada faixa = período em que você está ocupado (do início ao término da entrega). Clique em um dia para ver os períodos que atravessam esse dia.",
+  title = "Calendário de ocupação",
+  description =
+    "Do início ao término da entrega você fica alocado. O número no dia indica quantas demandas atravessam aquela data. Toque num dia para ver o detalhe.",
   showProducerFilter = false,
 }: Props) {
-  const { displayName } = useAuth();
   const { demands: demandsFromHook, isLoading: hookLoading } = useDemands();
   const demands = demandsProp !== undefined && demandsProp.length > 0 ? demandsProp : demandsFromHook;
   const loading = isLoading || hookLoading;
+  const [selectedProducer, setSelectedProducer] = useState<string>("all");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
   const [month, setMonth] = useState<Date>(() => new Date());
 
@@ -68,42 +68,43 @@ export default function ProducerAvailabilityCalendar({
     setSelectedDate(today);
   }, []);
 
-  const demandsByDay = useMemo((): DemandsByDayMap => {
-    const list = demands.filter((d) => d.due_at);
-    return demandsToDaysMap(list);
+  const producerOptions = useMemo(() => {
+    const names = [...new Set(demands.map((d) => d.producer_name).filter(Boolean))];
+    return names.sort((a, b) => a.localeCompare(b));
   }, [demands]);
 
-  const demandTracks = useMemo(() => getDemandTracks(demandsByDay), [demandsByDay]);
+  const visibleDemands = useMemo(() => {
+    if (!showProducerFilter || selectedProducer === "all") return demands;
+    return demands.filter((d) => d.producer_name === selectedProducer);
+  }, [demands, selectedProducer, showProducerFilter]);
+
+  const demandsByDay = useMemo((): DemandsByDayMap => {
+    const list = visibleDemands.filter((d) => d.due_at);
+    return demandsToDaysMap(list);
+  }, [visibleDemands]);
 
   const DayContent = useCallback(
     (props: DayContentProps) => {
       const key = format(props.date, "yyyy-MM-dd");
       const segments = demandsByDay[key] ?? [];
-      const hasDemands = segments.length > 0;
+      const count = segments.length;
       return (
-        <div className="flex flex-col items-stretch h-full w-full gap-1 px-0.5 pt-1 pb-0 overflow-hidden">
-          <span className="relative text-[13px] font-medium text-center leading-none text-foreground/90 shrink-0">
+        <div className="relative flex h-full w-full items-start justify-center pt-1">
+          <span className="text-[13px] font-medium leading-none text-foreground/90">
             {props.date.getDate()}
-            {hasDemands && (
-              <span
-                className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-destructive/80"
-                aria-hidden
-              />
-            )}
           </span>
-          {/* pointer-events-none: cliques passam para o botão do dia (evita selecionar o dia de baixo); overflow-y-hidden + -mx como acima */}
-          <div className="pointer-events-none flex flex-col w-full flex-1 min-h-0 overflow-y-hidden overflow-x-visible justify-end -mx-0.5">
-            <DemandBarList
-              segments={segments}
-              demandTracks={demandTracks}
-              compact
-              canEdit={!!onEditDemand}
-            />
-          </div>
+          {count > 0 && (
+            <span
+              className="absolute bottom-1 right-1 min-w-4 rounded-full bg-destructive px-1 text-[10px] font-semibold leading-4 text-destructive-foreground"
+              aria-hidden
+            >
+              {count}
+            </span>
+          )}
         </div>
       );
     },
-    [demandsByDay, demandTracks, onEditDemand],
+    [demandsByDay],
   );
 
   const DayWithAria = useCallback(
@@ -112,7 +113,9 @@ export default function ProducerAvailabilityCalendar({
       const count = (demandsByDay[key] ?? []).length;
       const dateLabel = format(props.date, "d 'de' MMMM", { locale: ptBR });
       const ariaLabel =
-        count > 0 ? `${dateLabel}, ocupado com ${count} período${count !== 1 ? "s" : ""} de entrega` : `${dateLabel}, livre`;
+        count > 0
+          ? `${dateLabel}, ${count} demanda${count !== 1 ? "s" : ""} alocada${count !== 1 ? "s" : ""} neste período`
+          : `${dateLabel}, sem demandas neste período`;
       return <DayPickerDay {...props} aria-label={ariaLabel} />;
     },
     [demandsByDay],
@@ -122,7 +125,7 @@ export default function ProducerAvailabilityCalendar({
   const demandsOnSelectedDay = useMemo((): DemandRow[] => {
     if (!selectedDate) return [];
     const dayStart = startOfDay(selectedDate);
-    return demands
+    return visibleDemands
       .filter((d) => {
         if (!d.due_at) return false;
         const start = d.start_at ? parseISO(d.start_at) : parseISO(d.due_at);
@@ -136,34 +139,76 @@ export default function ProducerAvailabilityCalendar({
         const bStart = b.start_at ? parseISO(b.start_at) : parseISO(b.due_at!);
         return aStart.getTime() - bStart.getTime();
       });
-  }, [demands, selectedDate]);
+  }, [visibleDemands, selectedDate]);
+
+  const monthSummary = useMemo(() => {
+    const currentMonth = month.getMonth();
+    const currentYear = month.getFullYear();
+    const dayKeys = Object.keys(demandsByDay);
+    const keysInMonth = dayKeys.filter((key) => {
+      const day = new Date(`${key}T00:00:00`);
+      return day.getMonth() === currentMonth && day.getFullYear() === currentYear;
+    });
+    const totalPeriodsInMonth = keysInMonth.reduce((acc, key) => acc + (demandsByDay[key]?.length ?? 0), 0);
+    return {
+      occupiedDays: keysInMonth.length,
+      totalPeriodsInMonth,
+    };
+  }, [month, demandsByDay]);
+
+  const selectedSummary = useMemo(() => {
+    if (!selectedDate) return { total: 0, active: 0, done: 0, pending: 0 };
+    const total = demandsOnSelectedDay.length;
+    const active = demandsOnSelectedDay.filter((d) => d.status === "em_producao").length;
+    const done = demandsOnSelectedDay.filter((d) => d.status === "concluido").length;
+    const pending = demandsOnSelectedDay.filter((d) => d.status === "aguardando").length;
+    return { total, active, done, pending };
+  }, [demandsOnSelectedDay, selectedDate]);
+
+  const canCreateFromDate = Boolean(onAddDemandWithDate && userId);
 
   return (
     <TooltipProvider delayDuration={300}>
       <Card className="border border-border/60 rounded-2xl overflow-hidden bg-card/80 shadow-sm">
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <CalendarDays className="h-5 w-5 text-primary/90" />
+        <CardHeader className="space-y-1 pb-4">
+          <CardTitle className="flex items-center gap-2 text-lg font-semibold tracking-tight">
+            <CalendarDays className="h-5 w-5 shrink-0 text-primary/90" aria-hidden />
             {title}
           </CardTitle>
-          <CardDescription className="text-muted-foreground/90">{description}</CardDescription>
+          <CardDescription className="text-sm leading-relaxed text-muted-foreground">{description}</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
-            <div className="flex w-full flex-col items-center gap-4 rounded-xl bg-muted/30 px-4 py-5 border border-border/50">
-              <div className="flex flex-wrap items-center justify-center gap-2 w-full mb-1">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-7 px-2 text-xs"
-                  onClick={goToToday}
-                >
-                  Hoje
+        <CardContent className="space-y-5">
+          {showProducerFilter && (
+            <div className="space-y-2">
+              <label htmlFor="occupation-producer" className="text-sm font-medium text-foreground">
+                Produtor
+              </label>
+              <Select value={selectedProducer} onValueChange={setSelectedProducer}>
+                <SelectTrigger id="occupation-producer" className="w-full sm:max-w-sm">
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os produtores</SelectItem>
+                  {producerOptions.map((name) => (
+                    <SelectItem key={name} value={name}>
+                      {name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:items-stretch">
+            <section className="flex flex-col rounded-xl border border-border/50 bg-muted/20 p-4">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <h4 className="text-sm font-medium text-foreground">Mês</h4>
+                <Button type="button" variant="outline" size="sm" className="h-8 px-3 text-xs" onClick={goToToday}>
+                  Ir para hoje
                 </Button>
               </div>
               <Calendar
-                className="demand-calendar w-full max-w-none rounded-xl border-0 bg-transparent p-0 [&_button]:h-auto [&_button]:min-h-[4.5rem] [&_button]:py-1.5 [&_button]:px-0 [&_button]:items-start [&_button]:rounded-lg [&_button]:transition-all [&_button]:duration-200 [&_button]:hover:bg-muted/40 [&_td]:px-0.5"
+                className="w-full max-w-none rounded-xl border bg-background p-2 [&_button]:h-10 [&_button]:w-10 [&_button]:rounded-lg [&_button]:transition-colors [&_button]:duration-150 [&_button]:hover:bg-muted/50"
                 mode="single"
                 selected={selectedDate}
                 onSelect={handleSelectDate}
@@ -174,95 +219,134 @@ export default function ProducerAvailabilityCalendar({
                 components={{ DayContent, Day: DayWithAria }}
                 classNames={{
                   day_selected:
-                    "!bg-destructive/10 !text-foreground hover:!bg-destructive/15 focus:!bg-destructive/10 ring-1 ring-destructive/30",
+                    "!bg-destructive/15 !text-foreground hover:!bg-destructive/20 focus:!bg-destructive/15 ring-1 ring-destructive/35",
                   day_today: "!bg-muted/50 font-semibold",
                 }}
               />
-              <div className="flex flex-wrap items-center justify-center gap-4 text-xs text-muted-foreground">
-                <span className="flex items-center gap-2">
-                  <Play className="h-3 w-3 text-destructive shrink-0" aria-hidden />
-                  <Square className="h-2.5 w-2.5 text-destructive shrink-0" aria-hidden />
-                  <span className="h-1.5 w-8 rounded-sm bg-destructive/30" />
-                  <span>faixa = período ocupado (início → término da entrega)</span>
-                </span>
+              <p className="mt-3 text-xs text-muted-foreground">
+                Número no canto do dia = quantas demandas atravessam aquela data (entre início e entrega).
+              </p>
+              <div className="mt-3 grid w-full grid-cols-1 gap-2 sm:grid-cols-2">
+                <div className="rounded-lg border border-border/40 bg-card/60 px-3 py-2.5">
+                  <p className="text-xs text-muted-foreground">Dias com alocação</p>
+                  <p className="text-lg font-semibold tabular-nums text-foreground">{monthSummary.occupiedDays}</p>
+                </div>
+                <div className="rounded-lg border border-border/40 bg-card/60 px-3 py-2.5">
+                  <p className="text-xs text-muted-foreground">Marcadores no mês</p>
+                  <p className="text-lg font-semibold tabular-nums text-foreground">{monthSummary.totalPeriodsInMonth}</p>
+                </div>
               </div>
-            <div className="w-full rounded-xl border border-border/50 bg-card/50 px-4 py-3 text-sm space-y-3">
+            </section>
+
+            <section className="flex flex-col rounded-xl border border-border/50 bg-card/60 p-4 text-sm shadow-sm">
               {selectedDate ? (
-                <>
-                  <p className="font-medium text-foreground capitalize">
-                    {format(selectedDate, "EEEE, d 'de' MMMM", { locale: ptBR })}
-                  </p>
-                  {onAddDemandWithDate && (
+                <div className="flex min-h-0 flex-1 flex-col gap-4">
+                  <div className="space-y-0.5 border-b border-border/40 pb-3">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Dia selecionado</p>
+                    <p className="text-base font-semibold capitalize text-foreground">
+                      {format(selectedDate, "EEEE, d 'de' MMMM", { locale: ptBR })}
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="rounded-lg border border-border/40 bg-muted/25 px-3 py-2">
+                      <p className="text-xs text-muted-foreground">Demandas no dia</p>
+                      <p className="text-lg font-semibold tabular-nums">{selectedSummary.total}</p>
+                    </div>
+                    <div className="rounded-lg border border-border/40 bg-muted/25 px-3 py-2">
+                      <p className="text-xs text-muted-foreground">Em produção</p>
+                      <p className="text-lg font-semibold tabular-nums">{selectedSummary.active}</p>
+                    </div>
+                    <div className="rounded-lg border border-border/40 bg-muted/25 px-3 py-2">
+                      <p className="text-xs text-muted-foreground">Aguardando</p>
+                      <p className="text-lg font-semibold tabular-nums">{selectedSummary.pending}</p>
+                    </div>
+                    <div className="rounded-lg border border-border/40 bg-muted/25 px-3 py-2">
+                      <p className="text-xs text-muted-foreground">Concluídas</p>
+                      <p className="text-lg font-semibold tabular-nums">{selectedSummary.done}</p>
+                    </div>
+                  </div>
+
+                  {canCreateFromDate && onAddDemandWithDate && (
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="w-full gap-2 rounded-lg"
+                      className="h-9 w-full gap-2 rounded-lg"
                       onClick={() => onAddDemandWithDate(selectedDate)}
                     >
-                      <Plus className="h-4 w-4" />
-                      Nova demanda com término neste dia
+                      <Plus className="h-4 w-4 shrink-0" aria-hidden />
+                      Criar demanda com entrega neste dia
                     </Button>
                   )}
+
                   {demandsOnSelectedDay.length > 0 ? (
-                    <>
-                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
-                        Neste dia você está ocupado com
-                      </p>
-                      <ul className="space-y-1.5">
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-muted-foreground">Demandas que passam por este dia</p>
+                      <ul className="max-h-[min(320px,50vh)] space-y-2 overflow-y-auto pr-0.5">
                         {demandsOnSelectedDay.map((d) => {
-                          const start = d.start_at ? parseISO(d.start_at) : parseISO(d.due_at!);
-                          const end = parseISO(d.due_at!);
-                          const periodLabel = `${format(start, "dd/MM")} → ${format(end, "dd/MM")}`;
+                        const start = d.start_at ? parseISO(d.start_at) : parseISO(d.due_at!);
+                        const end = parseISO(d.due_at!);
+                        const periodLabel = `${format(start, "dd/MM")} \u2192 ${format(end, "dd/MM")}`;
+                        const content = (
+                          <div className="w-full rounded-lg border border-border/40 bg-muted/20 px-3 py-2.5 text-left">
+                            <div className="flex items-center gap-2">
+                              <Clock3 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                              <span className="text-xs text-muted-foreground tabular-nums">
+                                Período: {periodLabel}
+                              </span>
+                            </div>
+                            <p className="mt-1.5 truncate font-medium text-foreground">{d.name}</p>
+                            <span className="mt-1.5 inline-flex rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+                              {statusLabel[d.status] ?? d.status}
+                            </span>
+                          </div>
+                        );
                           return (
                             <li key={d.id}>
                               {onEditDemand ? (
-                                <Button
+                                <button
                                   type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  className="w-full justify-start gap-2 h-auto py-2 px-3 rounded-lg bg-muted/40 hover:bg-muted/70 text-left font-normal transition-colors border border-transparent hover:border-border/50"
+                                  className="w-full rounded-lg text-left transition hover:opacity-95"
                                   onClick={() => onEditDemand(d)}
                                 >
-                                  <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                                  <span className="font-medium text-foreground truncate flex-1">{d.name}</span>
-                                  <span className="text-[11px] text-muted-foreground shrink-0 tabular-nums" title="Ocupado neste período">
-                                    {periodLabel}
-                                  </span>
-                                  <span className="rounded-md bg-muted px-1.5 py-0.5 text-xs shrink-0">
-                                    {statusLabel[d.status] ?? d.status}
-                                  </span>
-                                </Button>
+                                  <div className="flex items-start gap-2">
+                                    <Pencil className="mt-2 h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                                    {content}
+                                  </div>
+                                </button>
                               ) : (
-                                <div className="flex flex-wrap items-center gap-2 rounded-lg bg-muted/40 px-3 py-2 border border-transparent">
-                                  <span className="font-medium text-foreground truncate">{d.name}</span>
-                                  <span className="text-[11px] text-muted-foreground tabular-nums">{periodLabel}</span>
-                                  <span className="rounded-md bg-muted px-1.5 py-0.5 text-xs">
-                                    {statusLabel[d.status] ?? d.status}
-                                  </span>
-                                </div>
+                                content
                               )}
                             </li>
                           );
                         })}
                       </ul>
-                    </>
+                    </div>
                   ) : (
-                    <p className="text-muted-foreground text-sm">Neste dia você está livre (nenhum período de entrega).</p>
+                    <div className="rounded-lg border border-dashed border-border/50 bg-muted/15 px-3 py-6 text-center text-sm text-muted-foreground">
+                      Nenhuma demanda aloca este dia.
+                    </div>
                   )}
-                </>
+                </div>
               ) : (
-                <p className="text-muted-foreground text-sm">Clique em um dia para ver se você está ocupado ou livre.</p>
+                <div className="flex min-h-[220px] flex-1 flex-col items-center justify-center rounded-lg border border-dashed border-border/50 bg-muted/10 px-4 text-center">
+                  <p className="text-sm font-medium text-foreground">Escolha um dia</p>
+                  <p className="mt-1 max-w-[240px] text-xs leading-relaxed text-muted-foreground">
+                    Toque numa data no calendário para ver resumo e lista de demandas.
+                  </p>
+                </div>
               )}
+            </section>
+          </div>
+
+          {loading && (
+            <div className="flex justify-center py-2" role="status" aria-live="polite">
+              <span className="sr-only">Carregando</span>
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
             </div>
-          </div>
-        </div>
-        {loading && (
-          <div className="flex justify-center py-2">
-            <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          </div>
-        )}
-      </CardContent>
+          )}
+        </CardContent>
     </Card>
     </TooltipProvider>
   );

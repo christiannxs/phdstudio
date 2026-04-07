@@ -39,8 +39,7 @@ export default function Auth() {
     setSubmitting(false);
   };
 
-  const handlePasswordReset = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handlePasswordReset = async () => {
     if (!resetEmail.trim()) {
       toast.error("Informe o e-mail.");
       return;
@@ -58,7 +57,7 @@ export default function Auth() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-accent p-4">
+    <div className="flex min-h-screen items-center justify-center bg-accent p-4 sm:p-6">
       <Card className="w-full max-w-md border-primary/20 shadow-2xl">
         <CardHeader className="text-center pb-2">
           <div className="mx-auto mb-3 flex justify-center">
@@ -66,7 +65,7 @@ export default function Auth() {
           </div>
           <CardDescription className="text-primary font-semibold text-sm">DEMANDAS</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <form onSubmit={handleLogin} className="space-y-4 pt-4">
             <div className="space-y-2">
               <Label htmlFor="login-email">E-mail</Label>
@@ -88,25 +87,30 @@ export default function Auth() {
                 Esqueci minha senha
               </button>
             ) : (
-              <form onSubmit={handlePasswordReset} className="space-y-2 pt-2 border-t border-border">
-                <Label htmlFor="reset-email" className="text-xs">E-mail para redefinir senha</Label>
-                <Input
-                  id="reset-email"
-                  type="email"
-                  placeholder="seu@email.com"
-                  value={resetEmail}
-                  onChange={(e) => setResetEmail(e.target.value)}
-                  className="h-9"
-                />
-                <div className="flex gap-2">
-                  <Button type="submit" size="sm" disabled={resetting}>
-                    {resetting ? "Enviando..." : "Enviar link"}
-                  </Button>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => { setShowReset(false); setResetEmail(""); }}>
-                    Cancelar
-                  </Button>
+              <div className="pt-2 border-t border-border">
+                <p className="text-xs text-muted-foreground mb-2">
+                  Informe seu e-mail para receber o link de redefinição.
+                </p>
+                <div className="space-y-2">
+                  <Label htmlFor="reset-email" className="text-xs">E-mail para redefinir senha</Label>
+                  <Input
+                    id="reset-email"
+                    type="email"
+                    placeholder="seu@email.com"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    className="h-9"
+                  />
+                  <div className="flex gap-2">
+                    <Button type="button" size="sm" disabled={resetting} onClick={handlePasswordReset}>
+                      {resetting ? "Enviando..." : "Enviar link"}
+                    </Button>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => { setShowReset(false); setResetEmail(""); }}>
+                      Cancelar
+                    </Button>
+                  </div>
                 </div>
-              </form>
+              </div>
             )}
           </form>
         </CardContent>

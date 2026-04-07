@@ -8,7 +8,7 @@ export type ProducerAvailabilityRow = Database["public"]["Tables"]["producer_ava
 export async function fetchMyAvailability(userId: string): Promise<ProducerAvailabilityRow[]> {
   const { data, error } = await supabase
     .from("producer_availability")
-    .select("*")
+    .select("id,user_id,date,slot_start,slot_end,created_at")
     .eq("user_id", userId)
     .order("date", { ascending: true })
     .order("slot_start", { ascending: true });

@@ -1,18 +1,20 @@
 import { useMemo, useState, useCallback } from "react";
 import { format, parseISO, startOfDay, addDays, addWeeks, startOfWeek, isSameDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarRange, ChevronLeft, ChevronRight, List } from "lucide-react";
 import { DemandTooltip } from "@/components/dashboard/DemandTooltip";
 import type { DemandRow } from "@/types/demands";
 
-const ROW_HEIGHT = 40;
-const DAY_COLUMN_MIN_WIDTH = 36;
-const LABEL_WIDTH = 200;
+const DAY_COLUMN_MIN = 40;
+const LABEL_WIDTH = 168;
+const BAR_H = 26;
+const LANE_GAP = 5;
+const ROW_PAD_Y = 10;
 
-/** Gera a lista de dias exibidos no calendário (sempre começa no domingo da semana do rangeStart). */
+/** Gera os dias exibidos (a partir do domingo da semana de rangeStart). */
 function getDaysInRange(rangeStart: Date, numWeeks: number): Date[] {
   const start = startOfWeek(rangeStart, { weekStartsOn: 0 });
   const days: Date[] = [];
@@ -22,7 +24,9 @@ function getDaysInRange(rangeStart: Date, numWeeks: number): Date[] {
   return days;
 }
 
-function getTimelineDemands(demands: DemandRow[]): DemandRow[] {
+type IntervalItem = { demand: DemandRow; start: number; end: number };
+
+function toSortedIntervals(demands: DemandRow[]): IntervalItem[] {
   return demands
     .filter((d) => d.due_at)
     .map((d) => {
@@ -31,8 +35,40 @@ function getTimelineDemands(demands: DemandRow[]): DemandRow[] {
       return { demand: d, start: start.getTime(), end: end.getTime() };
     })
     .filter(({ start, end }) => start <= end)
-    .sort((a, b) => a.start - b.start)
-    .map(({ demand }) => demand);
+    .sort((a, b) => a.start - b.start || a.end - b.end);
+}
+
+/** Atribui faixas empilhadas para períodos que se sobrepõem (greedy por ordem de início). */
+function assignLanes(intervals: IntervalItem[]): Map<string, number> {
+  const laneLastEnd: number[] = [];
+  const map = new Map<string, number>();
+  for (const item of intervals) {
+    let lane = -1;
+    for (let i = 0; i < laneLastEnd.length; i++) {
+      if (item.start >= laneLastEnd[i]) {
+        lane = i;
+        break;
+      }
+    }
+    if (lane === -1) {
+      lane = laneLastEnd.length;
+      laneLastEnd.push(item.end);
+    } else {
+      laneLastEnd[lane] = item.end;
+    }
+    map.set(item.demand.id, lane);
+  }
+  return map;
+}
+
+function laneCountFromMap(laneMap: Map<string, number>): number {
+  if (laneMap.size === 0) return 0;
+  return Math.max(...laneMap.values()) + 1;
+}
+
+function rowInnerHeight(lanes: number): number {
+  if (lanes <= 0) return ROW_PAD_Y * 2 + BAR_H;
+  return ROW_PAD_Y * 2 + lanes * BAR_H + Math.max(0, lanes - 1) * LANE_GAP;
 }
 
 function getDemandsByProducer(demands: DemandRow[]): { producerName: string; demands: DemandRow[] }[] {
@@ -43,30 +79,24 @@ function getDemandsByProducer(demands: DemandRow[]): { producerName: string; dem
     byProducer.get(name)!.push(d);
   }
   return Array.from(byProducer.entries())
-    .map(([producerName, list]) => ({ producerName, demands: getTimelineDemands(list) }))
-    .filter(({ demands }) => demands.length > 0)
+    .map(([producerName, list]) => ({ producerName, demands: list }))
+    .filter(({ demands: ds }) => ds.some((d) => d.due_at))
     .sort((a, b) => a.producerName.localeCompare(b.producerName));
 }
 
-/** Retorna índice do dia na lista (0-based) ou -1 se fora do range. */
 function getDayIndex(days: Date[], date: Date): number {
   const d = startOfDay(date);
-  const i = days.findIndex((day) => isSameDay(day, d));
-  return i;
+  return days.findIndex((day) => isSameDay(day, d));
 }
 
 export interface DemandCalendarTimelineProps {
   demands: DemandRow[];
   isLoading?: boolean;
-  /** Clique na barra: abre visualização somente leitura (se passado). */
   onViewDemand?: (demand: DemandRow) => void;
-  /** Clique na barra: abre edição (usado quando onViewDemand não é passado). */
   onEditDemand?: (demand: DemandRow) => void;
   title?: string;
   description?: string;
-  /** Quando true, agrupa por produtor (uma linha por produtor, várias barras). */
   groupByProducer?: boolean;
-  /** Número de semanas exibidas (default 4). */
   weeks?: number;
 }
 
@@ -75,8 +105,8 @@ export function DemandCalendarTimeline({
   isLoading = false,
   onViewDemand,
   onEditDemand,
-  title = "Timeline em forma de calendário",
-  description = "Cada barra = período ocupado (início → término). Os dados são os mesmos da lista de demandas e atualizam ao criar ou editar.",
+  title = "Linha do tempo",
+  description = "Período de cada demanda (início → entrega). Barras sobrepostas são empilhadas automaticamente.",
   groupByProducer = false,
   weeks = 4,
 }: DemandCalendarTimelineProps) {
@@ -85,8 +115,11 @@ export function DemandCalendarTimeline({
   const today = useMemo(() => startOfDay(new Date()), []);
 
   const days = useMemo(() => getDaysInRange(rangeStart, weeks), [rangeStart, weeks]);
-  const timelineDemands = useMemo(() => getTimelineDemands(demands), [demands]);
   const byProducer = useMemo(() => getDemandsByProducer(demands), [demands]);
+
+  const allIntervals = useMemo(() => toSortedIntervals(demands), [demands]);
+  const singleLaneMap = useMemo(() => assignLanes(allIntervals), [allIntervals]);
+  const singleLanes = laneCountFromMap(singleLaneMap);
 
   const goPrev = useCallback(() => {
     setRangeStart((prev) => addWeeks(prev, -1));
@@ -103,7 +136,16 @@ export function DemandCalendarTimeline({
     return `${format(days[0], "d MMM", { locale: ptBR })} – ${format(end, "d MMM yyyy", { locale: ptBR })}`;
   }, [days]);
 
-  const renderBar = (demand: DemandRow) => {
+  const summaryList = useMemo(() => {
+    return allIntervals.map(({ demand: d, start, end }) => ({
+      name: d.name,
+      start: new Date(start),
+      end: new Date(end),
+      id: d.id,
+    }));
+  }, [allIntervals]);
+
+  const renderBar = (demand: DemandRow, lane: number) => {
     const startAt = demand.start_at ? parseISO(demand.start_at) : parseISO(demand.due_at!);
     const dueAt = parseISO(demand.due_at!);
     const startIdx = getDayIndex(days, startAt);
@@ -114,171 +156,242 @@ export function DemandCalendarTimeline({
     if (first > last) return null;
     const leftPct = (first / days.length) * 100;
     const widthPct = ((last - first + 1) / days.length) * 100;
+    const top = ROW_PAD_Y + lane * (BAR_H + LANE_GAP);
+    const showLabel = widthPct >= 12;
 
     return (
       <DemandTooltip key={demand.id} demand={demand} canEdit={!!onEditDemand && !onViewDemand} viewOnly={!!onViewDemand}>
         <button
           type="button"
-          className="absolute top-2 bottom-2 rounded bg-destructive/30 hover:bg-destructive/50 transition-colors min-w-[4px] focus:outline-none focus:ring-1 focus:ring-destructive/40"
-          style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
+          className="group absolute flex items-center overflow-hidden rounded-md border border-primary/35 bg-primary/20 px-1.5 text-left shadow-sm transition-colors hover:border-primary/50 hover:bg-primary/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          style={{
+            left: `${leftPct}%`,
+            width: `${widthPct}%`,
+            top,
+            height: BAR_H,
+            minWidth: 4,
+          }}
           onClick={() => onBarClick?.(demand)}
         >
-          <span className="sr-only">{demand.name} — {format(startAt, "dd/MM")} a {format(dueAt, "dd/MM")}</span>
+          {showLabel && (
+            <span className="block min-w-0 truncate text-[11px] font-medium leading-tight text-foreground/95">
+              {demand.name}
+            </span>
+          )}
+          <span className="sr-only">
+            {demand.name} — {format(startAt, "dd/MM")} a {format(dueAt, "dd/MM")}
+          </span>
         </button>
       </DemandTooltip>
     );
   };
 
-  const emptyMessage = groupByProducer
-    ? "Nenhum produtor com período ocupado no intervalo."
-    : "Nenhuma demanda com período definido no intervalo.";
-
-  const hasData = groupByProducer ? byProducer.length > 0 : timelineDemands.length > 0;
-
-  const summaryList = useMemo(() => {
-    if (timelineDemands.length === 0) return [];
-    return timelineDemands.map((d) => {
-      const start = d.start_at ? parseISO(d.start_at) : parseISO(d.due_at!);
-      const end = parseISO(d.due_at!);
-      return { name: d.name, start, end };
+  const gridBackground = (keyPrefix: string) =>
+    days.map((day, i) => {
+      const isTodayCol = isSameDay(day, today);
+      const isWeekStart = i % 7 === 0;
+      const weekend = day.getDay() === 0 || day.getDay() === 6;
+      return (
+        <div
+          key={`${keyPrefix}-${i}`}
+          className={`pointer-events-none absolute top-0 bottom-0 border-border/30 ${isWeekStart && i > 0 ? "border-l" : ""} ${weekend ? "bg-muted/25" : ""} ${isTodayCol ? "bg-primary/[0.06]" : ""}`}
+          style={{ left: `${(i / days.length) * 100}%`, width: `${100 / days.length}%` }}
+        />
+      );
     });
-  }, [timelineDemands]);
+
+  const emptyMessage = groupByProducer
+    ? "Nenhum produtor com demandas neste intervalo."
+    : "Nenhuma demanda com início e entrega neste intervalo.";
+
+  const hasData = groupByProducer ? byProducer.length > 0 : allIntervals.length > 0;
+
+  const minChartWidth = LABEL_WIDTH + days.length * DAY_COLUMN_MIN;
 
   return (
-    <TooltipProvider delayDuration={300}>
-      <Card className="border-0 rounded-xl overflow-hidden bg-transparent shadow-none">
-        <CardHeader className="pb-2 pt-0 px-0">
-          <div className="flex items-center justify-between gap-4">
-            <CardTitle className="text-base font-medium">{title}</CardTitle>
-            <div className="flex items-center gap-1">
-              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={goPrev} aria-label="Anterior">
+    <TooltipProvider delayDuration={280}>
+      <Card className="overflow-hidden rounded-2xl border border-border/60 bg-card/80 shadow-sm">
+        <CardHeader className="space-y-3 border-b border-border/40 pb-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="space-y-1">
+              <CardTitle className="flex items-center gap-2 text-lg font-semibold tracking-tight">
+                <CalendarRange className="h-5 w-5 shrink-0 text-primary/90" aria-hidden />
+                {title}
+              </CardTitle>
+              <p className="text-sm leading-relaxed text-muted-foreground">{description}</p>
+            </div>
+            <div className="flex flex-wrap items-center justify-end gap-1 sm:shrink-0">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-9 w-9"
+                onClick={goPrev}
+                aria-label="Semana anterior"
+              >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <span className="text-xs text-muted-foreground tabular-nums min-w-[140px] text-center">{rangeLabel}</span>
-              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={goNext} aria-label="Próximo">
+              <span className="min-w-[150px] px-2 text-center text-sm font-medium tabular-nums text-foreground">
+                {rangeLabel}
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-9 w-9"
+                onClick={goNext}
+                aria-label="Próxima semana"
+              >
                 <ChevronRight className="h-4 w-4" />
               </Button>
-              <Button type="button" variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground" onClick={goToday}>
-                Hoje
+              <Button type="button" variant="secondary" size="sm" className="h-9" onClick={goToday}>
+                Ir para hoje
               </Button>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-3 px-0">
-          <div className="overflow-x-auto">
-            <div
-              className="min-w-max flex flex-col"
-              style={{ width: "100%", minWidth: LABEL_WIDTH + days.length * DAY_COLUMN_MIN_WIDTH }}
-            >
-              {/* Cabeçalho */}
-              <div className="flex border-b border-border/40 shrink-0">
-                <div className="shrink-0 h-9 flex items-center px-2 text-[11px] text-muted-foreground" style={{ width: LABEL_WIDTH }} />
-                <div className="flex flex-1 min-w-0">
+
+        <CardContent className="space-y-4 pt-5">
+          <div className="overflow-x-auto rounded-xl border border-border/50 bg-muted/15 [-ms-overflow-style:none] [scrollbar-width:thin]">
+            <div className="min-w-max" style={{ minWidth: minChartWidth }}>
+              {/* Cabeçalho dos dias */}
+              <div className="flex border-b border-border/40 bg-muted/30">
+                <div
+                  className="sticky left-0 z-10 flex shrink-0 items-end border-r border-border/40 bg-muted/30 px-3 pb-2 pt-3"
+                  style={{ width: LABEL_WIDTH }}
+                >
+                  <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    {groupByProducer ? "Produtor" : "Visão"}
+                  </span>
+                </div>
+                <div className="flex min-w-0 flex-1">
                   {days.map((day, i) => {
                     const isToday = isSameDay(day, today);
                     const isWeekStart = i % 7 === 0;
                     return (
                       <div
                         key={i}
-                        className={`flex items-center justify-center shrink-0 text-[11px] text-muted-foreground ${isToday ? "text-foreground font-medium" : ""} ${isWeekStart && i > 0 ? "border-l border-destructive/50" : ""}`}
-                        style={{ minWidth: DAY_COLUMN_MIN_WIDTH, flex: 1, height: 36 }}
-                        title={format(day, "EEEE, d MMM", { locale: ptBR })}
+                        className={`flex shrink-0 flex-col items-center justify-center gap-0.5 border-border/25 py-2 text-center ${isWeekStart && i > 0 ? "border-l border-border/50" : ""} ${isToday ? "bg-primary/[0.08]" : ""}`}
+                        style={{ minWidth: DAY_COLUMN_MIN, flex: 1 }}
+                        title={format(day, "EEEE, d 'de' MMMM", { locale: ptBR })}
                       >
-                        {format(day, "d")}
+                        <span className="text-[10px] font-medium uppercase leading-none text-muted-foreground">
+                          {format(day, "EEE", { locale: ptBR })}
+                        </span>
+                        <span className={`text-sm font-semibold tabular-nums ${isToday ? "text-primary" : "text-foreground"}`}>
+                          {format(day, "d")}
+                        </span>
                       </div>
                     );
                   })}
                 </div>
               </div>
 
-              {/* Linhas */}
-              <div>
               {!hasData ? (
-                <div className="flex items-center justify-center py-10 text-xs text-muted-foreground" style={{ minHeight: 80 }}>
+                <div className="flex min-h-[120px] items-center justify-center px-4 py-10 text-sm text-muted-foreground">
                   {emptyMessage}
                 </div>
               ) : groupByProducer ? (
-                byProducer.map(({ producerName, demands: producerDemands }) => (
-                  <div key={producerName} className="flex border-b border-border/20 last:border-b-0 hover:bg-muted/10">
+                byProducer.map(({ producerName, demands: producerDemands }) => {
+                  const intervals = toSortedIntervals(producerDemands);
+                  const laneMap = assignLanes(intervals);
+                  const lanes = laneCountFromMap(laneMap);
+                  const h = rowInnerHeight(lanes);
+                  return (
                     <div
-                      className="shrink-0 flex items-center px-2 border-r border-border/20"
-                      style={{ width: LABEL_WIDTH, minHeight: ROW_HEIGHT }}
+                      key={producerName}
+                      className="flex border-b border-border/30 last:border-b-0 hover:bg-muted/20"
                     >
-                      <span className="text-sm text-foreground truncate" title={producerName}>{producerName}</span>
+                      <div
+                        className="sticky left-0 z-10 flex shrink-0 items-center border-r border-border/40 bg-card/95 px-3 backdrop-blur-sm"
+                        style={{ width: LABEL_WIDTH, minHeight: h }}
+                      >
+                        <span className="line-clamp-2 text-sm font-medium text-foreground" title={producerName}>
+                          {producerName}
+                        </span>
+                      </div>
+                      <div className="relative min-w-0 flex-1" style={{ minHeight: h }}>
+                        {gridBackground(`p-${producerName}`)}
+                        {intervals.map(({ demand }) => renderBar(demand, laneMap.get(demand.id) ?? 0))}
+                      </div>
                     </div>
-                    <div className="flex-1 relative min-w-0" style={{ minHeight: ROW_HEIGHT }}>
-                      {days.map((_, i) => {
-                        const isTodayCol = isSameDay(days[i], today);
-                        const isWeekStart = i % 7 === 0;
-                        return (
-                          <div
-                            key={i}
-                            className={`absolute top-0 bottom-0 ${isTodayCol ? "bg-foreground/[0.03]" : ""} ${isWeekStart && i > 0 ? "border-l border-destructive/50" : ""}`}
-                            style={{ left: `${(i / days.length) * 100}%`, width: `${100 / days.length}%` }}
-                          />
-                        );
-                      })}
-                      {producerDemands.map((d) => renderBar(d))}
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               ) : (
-                timelineDemands.map((demand) => (
-                  <div key={demand.id} className="flex border-b border-border/20 last:border-b-0 hover:bg-muted/10">
-                    <div
-                      className="shrink-0 flex items-center px-2 border-r border-border/20 min-w-0"
-                      style={{ width: LABEL_WIDTH, minHeight: ROW_HEIGHT }}
-                    >
-                      <span className="text-sm text-foreground truncate" title={demand.name}>{demand.name}</span>
+                (() => {
+                  const h = rowInnerHeight(singleLanes);
+                  return (
+                    <div className="flex border-border/30 hover:bg-muted/10">
+                      <div
+                        className="sticky left-0 z-10 flex shrink-0 items-center border-r border-border/40 bg-card/95 px-3 backdrop-blur-sm"
+                        style={{ width: LABEL_WIDTH, minHeight: h }}
+                      >
+                        <span className="text-sm font-medium text-foreground">Demandas no período</span>
+                      </div>
+                      <div className="relative min-w-0 flex-1" style={{ minHeight: h }}>
+                        {gridBackground("single")}
+                        {allIntervals.map(({ demand }) => renderBar(demand, singleLaneMap.get(demand.id) ?? 0))}
+                      </div>
                     </div>
-                    <div className="flex-1 relative min-w-0" style={{ minHeight: ROW_HEIGHT }}>
-                      {days.map((_, i) => {
-                        const isTodayCol = isSameDay(days[i], today);
-                        const isWeekStart = i % 7 === 0;
-                        return (
-                          <div
-                            key={i}
-                            className={`absolute top-0 bottom-0 ${isTodayCol ? "bg-foreground/[0.03]" : ""} ${isWeekStart && i > 0 ? "border-l border-destructive/50" : ""}`}
-                            style={{ left: `${(i / days.length) * 100}%`, width: `${100 / days.length}%` }}
-                          />
-                        );
-                      })}
-                      {renderBar(demand)}
-                    </div>
-                  </div>
-                ))
+                  );
+                })()
               )}
-              </div>
             </div>
           </div>
 
-          <p className="text-[11px] text-muted-foreground">
-            {onViewDemand ? "Clique na barra para visualizar." : "Barra = período ocupado. Clique para editar."}
-          </p>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-2.5 w-4 rounded-sm border border-primary/35 bg-primary/20" aria-hidden />
+              Período da demanda
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-2.5 w-2 rounded-sm bg-primary/40" aria-hidden />
+              Hoje
+            </span>
+            <span>Fins de semana levemente marcados.</span>
+          </div>
+
           {summaryList.length > 0 && (
-            <div className="pt-2 mt-2 border-t border-border/20">
-              <p className="text-[11px] font-medium text-muted-foreground mb-1.5">
-                Resumo — {summaryList.length} {summaryList.length === 1 ? "demanda" : "demandas"} no período
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-1 text-xs text-foreground">
-                {summaryList.map((item, i) => (
-                  <div key={i} className="flex items-center gap-2 min-w-0">
-                    <span className="inline-block w-2 h-2 rounded-sm bg-destructive/40 shrink-0" aria-hidden />
-                    <span className="truncate min-w-0" title={item.name}>{item.name}</span>
-                    <span className="text-muted-foreground tabular-nums shrink-0">
-                      {format(item.start, "dd/MM")} → {format(item.end, "dd/MM")}
-                    </span>
-                  </div>
-                ))}
+            <details className="group rounded-lg border border-border/40 bg-muted/20">
+              <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-sm font-medium text-foreground marker:content-none [&::-webkit-details-marker]:hidden">
+                <List className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                Lista rápida ({summaryList.length})
+                <span className="ml-auto text-xs font-normal text-muted-foreground group-open:hidden">Abrir</span>
+                <span className="ml-auto hidden text-xs font-normal text-muted-foreground group-open:inline">Fechar</span>
+              </summary>
+              <div className="border-t border-border/40 px-3 py-3">
+                <ul className="grid max-h-[min(240px,40vh)] grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2">
+                  {summaryList.map((item) => (
+                    <li
+                      key={item.id}
+                      className="flex min-w-0 items-baseline justify-between gap-2 rounded-md bg-background/60 px-2.5 py-1.5 text-xs"
+                    >
+                      <span className="min-w-0 truncate font-medium text-foreground" title={item.name}>
+                        {item.name}
+                      </span>
+                      <span className="shrink-0 tabular-nums text-muted-foreground">
+                        {format(item.start, "dd/MM")} → {format(item.end, "dd/MM")}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
               </div>
+            </details>
+          )}
+
+          <p className="text-xs text-muted-foreground">
+            {onViewDemand
+              ? "Clique numa barra para abrir a demanda (somente leitura)."
+              : "Clique numa barra para editar a demanda."}
+          </p>
+
+          {isLoading && (
+            <div className="flex justify-center py-1" role="status" aria-live="polite">
+              <span className="sr-only">Carregando</span>
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
             </div>
           )}
         </CardContent>
-        {isLoading && (
-          <div className="flex justify-center py-2">
-            <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          </div>
-        )}
       </Card>
     </TooltipProvider>
   );

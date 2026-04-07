@@ -1,12 +1,31 @@
 import { toast } from "sonner";
 
+const errorCodeMap: Record<string, string> = {
+  "23505": "Registro duplicado.",
+  "23503": "Referência inválida para operação solicitada.",
+  "42501": "Você não tem permissão para executar esta ação.",
+};
+
+type ErrorLike = {
+  message?: unknown;
+  code?: unknown;
+  details?: unknown;
+  hint?: unknown;
+};
+
 /**
  * Extrai mensagem amigável de um erro (Supabase, Error, ou desconhecido).
  */
 export function getErrorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
-  if (typeof err === "object" && err !== null && "message" in err && typeof (err as { message: unknown }).message === "string") {
-    return (err as { message: string }).message;
+  if (typeof err === "object" && err !== null) {
+    const typed = err as ErrorLike;
+    if (typeof typed.code === "string" && errorCodeMap[typed.code]) {
+      return errorCodeMap[typed.code];
+    }
+    if (typeof typed.message === "string") {
+      return typed.message;
+    }
   }
   return "Erro desconhecido";
 }

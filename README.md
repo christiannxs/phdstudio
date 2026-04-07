@@ -1,4 +1,4 @@
-# Welcome to your Lovable project
+# PHD Studio
 
 ## Banco de dados: Supabase
 
@@ -52,27 +52,11 @@ Este projeto usa **Supabase** como backend (PostgreSQL, autenticação e armazen
 
 ---
 
-## Project info
+## Desenvolvimento local
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+Instale as dependências, configure o `.env` conforme acima e execute `npm run dev`.
 
-## How can I edit this code?
-
-There are several ways of editing your application.
-
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-This project uses Supabase for database, auth and storage. Install dependencies and set `.env` as above, then run `npm run dev`.
-
-## What technologies are used for this project?
-
-This project is built with:
+## Stack
 
 - Vite
 - TypeScript

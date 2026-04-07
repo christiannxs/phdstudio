@@ -1,41 +1,31 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import type { DemandRow, DeliverableRow, DemandStatus } from "@/types/demands";
+import type { DemandStatus } from "@/types/demands";
 import { queryKeys } from "@/lib/query-keys";
 import { toast } from "sonner";
 import { handleApiError } from "@/lib/errors";
-
-async function fetchDemands(): Promise<DemandRow[]> {
-  const { data, error } = await supabase
-    .from("demands")
-    .select("*")
-    .order("created_at", { ascending: true });
-  if (error) throw error;
-  return (data ?? []) as DemandRow[];
-}
-
-async function fetchDeliverables(): Promise<DeliverableRow[]> {
-  const { data, error } = await supabase.from("demand_deliverables").select("*");
-  if (error) throw error;
-  return (data ?? []) as DeliverableRow[];
-}
+import {
+  listDemands,
+  listDeliverables,
+  updateDemandStatus,
+  updateDemandPhase,
+  deleteDemand,
+} from "@/services/demandService";
 
 export function useDemands() {
   const queryClient = useQueryClient();
 
   const demandsQuery = useQuery({
     queryKey: queryKeys.demands.all,
-    queryFn: fetchDemands,
+    queryFn: listDemands,
   });
   const deliverablesQuery = useQuery({
     queryKey: queryKeys.deliverables.all,
-    queryFn: fetchDeliverables,
+    queryFn: listDeliverables,
   });
 
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: DemandStatus }) => {
-      const { error } = await supabase.from("demands").update({ status }).eq("id", id);
-      if (error) throw error;
+      await updateDemandStatus(id, status);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.demands.all }),
     onError: (e) => handleApiError(e, "Erro ao atualizar status."),
@@ -51,8 +41,7 @@ export function useDemands() {
       phase: "phase_producao" | "phase_gravacao" | "phase_mix_master";
       checked: boolean;
     }) => {
-      const { error } = await supabase.from("demands").update({ [phase]: checked }).eq("id", id);
-      if (error) throw error;
+      await updateDemandPhase(id, phase, checked);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.demands.all }),
     onError: (e) => handleApiError(e, "Erro ao atualizar fase."),
@@ -60,8 +49,7 @@ export function useDemands() {
 
   const deleteDemandMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("demands").delete().eq("id", id);
-      if (error) throw error;
+      await deleteDemand(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.demands.all });

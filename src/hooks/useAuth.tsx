@@ -25,6 +25,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<AppRole | null>(null);
   const [displayName, setDisplayName] = useState<string | null>(null);
 
+  const normalizeAuthError = (error: unknown): Error => {
+    if (error instanceof Error) {
+      const msg = error.message.toLowerCase();
+      if (msg.includes("failed to fetch") || msg.includes("networkerror")) {
+        return new Error(
+          "Falha de conexão com o servidor de autenticação. Verifique internet, URL do Supabase e se o projeto está ativo."
+        );
+      }
+      return error;
+    }
+    return new Error("Erro inesperado de autenticação.");
+  };
+
   const fetchProfile = async (userId: string) => {
     const [profileRes, roleRes] = await Promise.all([
       supabase.from("profiles").select("display_name").eq("user_id", userId).maybeSingle(),
@@ -78,8 +91,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error: error ?? null };
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) return { error: normalizeAuthError(error) };
+      return { error: null };
+    } catch (error) {
+      return { error: normalizeAuthError(error) };
+    }
   };
 
   const signUpWithRole = async (email: string, password: string, name: string, roleValue: AppRole) => {
@@ -170,10 +188,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const sendPasswordReset = async (email: string) => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth`,
-    });
-    return { error: error ?? null };
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth`,
+      });
+      if (error) return { error: normalizeAuthError(error) };
+      return { error: null };
+    } catch (error) {
+      return { error: normalizeAuthError(error) };
+    }
   };
 
   return (

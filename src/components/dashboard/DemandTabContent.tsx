@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { LogOut, LayoutDashboard, UserPlus, AlertTriangle, FileBarChart, CalendarDays, CalendarRange, AlertCircle } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { LogOut, LayoutDashboard, UserPlus, AlertTriangle, FileBarChart, CalendarDays, CalendarRange, AlertCircle, Plus } from "lucide-react";
 import UserManagement from "@/components/UserManagement";
 import ProducerAvailabilityCalendar from "@/components/ProducerAvailabilityCalendar";
 import { DemandCalendarTimeline } from "@/components/dashboard/DemandCalendarTimeline";
@@ -90,6 +91,7 @@ export default function DemandTabContent({
 }: DemandTabContentProps) {
   const [calendarProducer, setCalendarProducer] = useState<string>("all");
   const [availabilityView, setAvailabilityView] = useState<"calendar" | "timeline-calendar">("timeline-calendar");
+  const [organizationMode, setOrganizationMode] = useState<"status" | "producer" | "deadline">("status");
 
   const demandsForCalendar =
     role === "produtor" && displayName
@@ -107,11 +109,11 @@ export default function DemandTabContent({
           <TabsList className="h-9 flex-wrap">
             <TabsTrigger value="timeline-calendar" className="gap-2">
               <CalendarRange className="h-4 w-4" />
-              Timeline calendário
+              Linha do tempo
             </TabsTrigger>
             <TabsTrigger value="calendar" className="gap-2">
               <CalendarDays className="h-4 w-4" />
-              Calendário
+              Calendário mensal
             </TabsTrigger>
           </TabsList>
           <TabsContent value="timeline-calendar" className="mt-3">
@@ -119,8 +121,8 @@ export default function DemandTabContent({
               demands={demandsForCalendar}
               isLoading={demandsLoading}
               onViewDemand={onViewDemand}
-              title="Timeline em forma de calendário"
-              description="Cada barra = período ocupado (início → término). Conectado à lista de demandas: as que já existem e as que forem criadas aparecem aqui."
+              title="Linha do tempo"
+              description="Cada barra é o período da demanda (início até a entrega). Novas demandas passam a aparecer aqui automaticamente."
             />
           </TabsContent>
           <TabsContent value="calendar" className="mt-3">
@@ -130,8 +132,8 @@ export default function DemandTabContent({
               isLoading={demandsLoading}
               onEditDemand={setEditingDemand}
               onAddDemandWithDate={onOpenCreateDialog ? (date) => onOpenCreateDialog(date) : undefined}
-              title="Quando estou ocupado"
-              description="Cada faixa = período em que você está ocupado (do início ao término da entrega). Clique em um dia para ver os períodos que atravessam esse dia."
+              title="Sua ocupação"
+              description="Entre o início e o término da entrega você aparece como alocado. O número no dia mostra quantas demandas cruzam aquela data; abra o dia para ver a lista."
             />
           </TabsContent>
         </Tabs>
@@ -140,9 +142,9 @@ export default function DemandTabContent({
       <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex flex-wrap items-center gap-2">
-            <label className="text-sm font-medium text-muted-foreground">Produtor</label>
+            <label className="text-sm font-medium text-foreground">Agenda de</label>
             <Select value={calendarProducer} onValueChange={setCalendarProducer}>
-              <SelectTrigger className="w-[200px]">
+              <SelectTrigger className="w-[min(100%,220px)] sm:w-[220px]">
                 <SelectValue placeholder="Todos os produtores" />
               </SelectTrigger>
               <SelectContent>
@@ -157,11 +159,11 @@ export default function DemandTabContent({
             <TabsList className="h-9 flex-wrap">
               <TabsTrigger value="timeline-calendar" className="gap-2">
                 <CalendarRange className="h-4 w-4" />
-                Timeline calendário
+                Linha do tempo
               </TabsTrigger>
               <TabsTrigger value="calendar" className="gap-2">
                 <CalendarDays className="h-4 w-4" />
-                Calendário
+                Calendário mensal
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -171,8 +173,8 @@ export default function DemandTabContent({
             demands={demandsForCalendar}
             isLoading={demandsLoading}
             onViewDemand={onViewDemand}
-            title="Timeline em forma de calendário"
-            description="Cada barra = período ocupado (início → término). Conectado à lista de demandas: as que já existem e as que forem criadas aparecem aqui."
+            title="Linha do tempo"
+            description="Cada barra é o período da demanda (início até a entrega). Com “Todos os produtores”, as barras são agrupadas por nome."
             groupByProducer={calendarProducer === "all"}
           />
         ) : (
@@ -181,29 +183,34 @@ export default function DemandTabContent({
             demands={demandsForCalendar}
             isLoading={demandsLoading}
             onEditDemand={setEditingDemand}
-            title="Quando cada produtor está ocupado"
-            description="Cada faixa = período em que o produtor está ocupado (do início ao término da entrega). Clique em um dia para ver os períodos que atravessam esse dia."
+            title="Ocupação por produtor"
+            description="Use “Agenda de” acima ou o filtro Produtor no card. O número no dia indica quantas demandas atravessam aquela data; abra o dia para ver detalhes."
             showProducerFilter
           />
         )}
       </div>
     ) : null;
 
+  const canCreateDemand =
+    role === "atendente" || role === "admin" || role === "ceo" || role === "produtor";
+
   const demandsContent = (
     <div className="space-y-8">
-      <header className="space-y-1">
-        <h2 className="text-xl font-bold tracking-tight text-foreground">Demandas</h2>
-        <p className="text-sm text-muted-foreground">
+      <header className="space-y-1.5">
+        <h2 className="text-balance text-xl font-bold tracking-tight text-foreground">Demandas</h2>
+        <p className="text-pretty text-sm leading-relaxed text-muted-foreground">
           Acompanhe e gerencie as solicitações por status, produtor e período.
         </p>
       </header>
 
       {availabilitySection && (
-        <section className="rounded-xl border border-border bg-card/50 p-4 sm:p-5">
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Ocupação</h3>
-          <p className="text-xs text-muted-foreground mb-3">
-            Cada demanda com data de início e término deixa o produtor ocupado nesse período até a entrega.
-          </p>
+        <section className="rounded-xl border border-border bg-card/50 p-4 sm:p-6">
+          <div className="mb-4 space-y-1">
+            <h3 className="text-base font-semibold tracking-tight text-foreground">Ocupação e agenda</h3>
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              Visualize quando há trabalho alocado entre a data de início e a de entrega. A linha do tempo mostra o período inteiro; o calendário destaca os dias e a lista do dia selecionado.
+            </p>
+          </div>
           {availabilitySection}
         </section>
       )}
@@ -221,7 +228,9 @@ export default function DemandTabContent({
       )}
 
       <section className="space-y-3">
-        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Resumo por status</h3>
+        <h3 className="text-balance text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          Resumo por status
+        </h3>
         <DemandStatsCards
           counts={counts}
           filterStatus={filterStatus}
@@ -245,64 +254,116 @@ export default function DemandTabContent({
         />
       </section>
 
-      <section className="space-y-4">
+      <section className="space-y-4" aria-label="Lista de demandas">
         {demandsError ? (
           <div
             role="alert"
-            className="flex flex-col items-center justify-center py-16 px-4 rounded-xl border border-destructive/40 bg-destructive/5 gap-4 text-center"
+            className="flex flex-col items-center justify-center gap-4 rounded-xl border border-destructive/40 bg-destructive/5 px-4 py-16 text-center"
           >
-            <AlertCircle className="h-12 w-12 text-destructive shrink-0" />
+            <AlertCircle className="h-12 w-12 shrink-0 text-destructive" aria-hidden />
             <div>
               <p className="font-medium text-foreground">Falha ao carregar demandas</p>
-              <p className="text-sm text-muted-foreground mt-1 max-w-md">
+              <p className="mt-1 max-w-md text-pretty text-sm text-muted-foreground">
                 {demandsErrorDetail instanceof Error ? demandsErrorDetail.message : "Verifique sua conexão e tente novamente."}
               </p>
             </div>
             {onRetryDemands && (
-              <Button variant="outline" onClick={onRetryDemands}>
+              <Button variant="outline" className="min-h-11" onClick={onRetryDemands}>
                 Tentar novamente
               </Button>
             )}
           </div>
         ) : demandsLoading ? (
-          <div className="flex flex-col items-center justify-center py-16 gap-4">
-            <div className="animate-spin h-10 w-10 border-2 border-primary border-t-transparent rounded-full" />
-            <p className="text-sm text-muted-foreground">Carregando demandas...</p>
+          <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+            <div className="border-b border-border/60 bg-muted/30 px-4 py-3 sm:px-5">
+              <Skeleton className="h-5 w-44" />
+            </div>
+            <div className="overflow-x-auto p-4 sm:p-5">
+              <p className="sr-only">Carregando lista de demandas</p>
+              <div
+                className="grid min-w-[720px] gap-4 sm:gap-5"
+                style={{ gridTemplateColumns: "repeat(3, minmax(240px, 1fr))" }}
+                aria-hidden
+              >
+                {[1, 2, 3].map((col) => (
+                  <div key={col} className="flex min-h-[280px] flex-col rounded-lg border border-border/60 bg-muted/20 p-3">
+                    <Skeleton className="mb-3 h-7 w-28" />
+                    <div className="space-y-2">
+                      <Skeleton className="h-28 w-full rounded-lg" />
+                      <Skeleton className="h-28 w-full rounded-lg" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         ) : filtered.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border bg-muted/30 flex flex-col items-center justify-center py-16 px-4 text-center">
-            <LayoutDashboard className="h-12 w-12 text-muted-foreground/60 mb-3" />
-            <p className="font-medium text-foreground">Nenhuma demanda encontrada</p>
-            <p className="text-sm text-muted-foreground mt-1 max-w-sm">
-              Ajuste os filtros ou crie uma nova demanda para começar.
-            </p>
+          <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-border bg-muted/30 px-4 py-16 text-center">
+            <LayoutDashboard className="mb-1 h-12 w-12 text-muted-foreground/60" aria-hidden />
+            <div>
+              <p className="font-medium text-foreground">Nenhuma demanda encontrada</p>
+              <p className="mt-1 max-w-sm text-pretty text-sm text-muted-foreground">
+                Ajuste os filtros ou crie uma nova demanda para começar.
+              </p>
+            </div>
+            {canCreateDemand && onOpenCreateDialog && (
+              <Button className="min-h-11 gap-2" onClick={() => onOpenCreateDialog()}>
+                <Plus className="h-4 w-4" aria-hidden />
+                Nova demanda
+              </Button>
+            )}
           </div>
         ) : (
-          <>
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+          <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+            <div className="flex flex-col gap-3 border-b border-border/60 bg-muted/30 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+              <h3
+                id="demand-list-heading"
+                className="text-balance text-sm font-semibold uppercase tracking-wide text-foreground"
+              >
                 Lista de demandas
               </h3>
-              <span className="text-xs text-muted-foreground tabular-nums">
-                {filtered.length} {filtered.length === 1 ? "item" : "itens"}
-              </span>
+              <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                <label htmlFor="demand-org-select" className="sr-only">
+                  Organizar colunas por
+                </label>
+                <Select
+                  value={organizationMode}
+                  onValueChange={(v) => setOrganizationMode(v as "status" | "producer" | "deadline")}
+                >
+                  <SelectTrigger id="demand-org-select" className="min-h-11 w-full min-w-[min(100%,220px)] sm:w-[220px]">
+                    <SelectValue placeholder="Organizar por" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="status">Organizar por status</SelectItem>
+                    <SelectItem value="producer">Organizar por produtor</SelectItem>
+                    <SelectItem value="deadline">Organizar por prazo</SelectItem>
+                  </SelectContent>
+                </Select>
+                <span className="tabular-nums text-xs text-muted-foreground">
+                  {filtered.length} {filtered.length === 1 ? "item" : "itens"}
+                </span>
+              </div>
             </div>
-            <DemandKanban
-              filtered={filtered}
-              deliverables={deliverables}
-              role={role}
-              userId={userId}
-              updatingId={updatingId}
-              onUpdateStatus={handleUpdateStatus}
-              onRefresh={refetch}
-              canEditOrDelete={canEditOrDelete}
-              onEdit={setEditingDemand}
-              onDelete={(id) => deleteDemandMutation.mutate(id)}
-              updateStatusMutation={updateStatusMutation}
-              updatePhaseMutation={updatePhaseMutation}
-              deleteDemandMutation={deleteDemandMutation}
-            />
-          </>
+            <div className="min-w-0 p-3 sm:p-4">
+              <DemandKanban
+                filtered={filtered}
+                deliverables={deliverables}
+                role={role}
+                userId={userId}
+                updatingId={updatingId}
+                onUpdateStatus={handleUpdateStatus}
+                onRefresh={refetch}
+                canEditOrDelete={canEditOrDelete}
+                onEdit={setEditingDemand}
+                onDelete={(id) => deleteDemandMutation.mutate(id)}
+                updateStatusMutation={updateStatusMutation}
+                updatePhaseMutation={updatePhaseMutation}
+                deleteDemandMutation={deleteDemandMutation}
+                organization={organizationMode}
+                ariaLabelledBy="demand-list-heading"
+              />
+            </div>
+          </div>
         )}
       </section>
     </div>
@@ -311,26 +372,35 @@ export default function DemandTabContent({
   const showUserManagement = role === "admin";
   const showTabs = role === "admin" || role === "ceo" || role === "atendente" || role === "produtor";
 
+  const headerContent = (
+    <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
+      <div className="flex min-w-0 items-center gap-3">
+        <img src="/minha-logo.png" alt="Logo" className="h-8 w-auto shrink-0 object-contain sm:h-9" />
+        <div className="min-w-0">
+          <h1 className="truncate text-base font-black leading-none tracking-tight text-accent-foreground sm:text-lg">
+            <span className="text-primary">DEMANDAS</span>
+          </h1>
+          <p className="truncate text-xs text-muted-foreground">{roleLabel} · {displayName}</p>
+        </div>
+      </div>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="min-h-[44px] shrink-0 touch-manipulation text-accent-foreground hover:text-primary"
+        onClick={signOut}
+      >
+        <LogOut className="mr-1 h-4 w-4" /> Sair
+      </Button>
+    </div>
+  );
+
   if (!showTabs) {
     return (
       <>
-        <header className="border-b border-primary/20 bg-accent sticky top-0 z-10">
-          <div className="mx-auto max-w-6xl flex flex-wrap items-center justify-between gap-2 px-3 py-2 sm:px-4 sm:py-3">
-            <div className="flex items-center gap-2 min-w-0">
-              <img src="/minha-logo.png" alt="Logo" className="h-8 sm:h-9 w-auto object-contain shrink-0" />
-              <div className="min-w-0">
-                <h1 className="text-base sm:text-lg font-black leading-none text-accent-foreground tracking-tight truncate">
-                  <span className="text-primary">DEMANDAS</span>
-                </h1>
-                <p className="text-xs text-muted-foreground truncate">{roleLabel} · {displayName}</p>
-              </div>
-            </div>
-            <Button variant="ghost" size="sm" className="min-h-[44px] touch-manipulation shrink-0 text-accent-foreground hover:text-primary" onClick={signOut}>
-              <LogOut className="h-4 w-4 mr-1" /> Sair
-            </Button>
-          </div>
+        <header className="sticky top-0 z-10 border-b border-primary/20 bg-accent/95 backdrop-blur">
+          {headerContent}
         </header>
-        <main className="w-full max-w-[1920px] mx-auto px-4 py-6 space-y-6">
+        <main className="mx-auto w-full max-w-7xl space-y-6 px-4 py-6 sm:px-6">
           {demandsContent}
         </main>
       </>
@@ -339,24 +409,11 @@ export default function DemandTabContent({
 
   return (
     <>
-      <header className="border-b border-primary/20 bg-accent sticky top-0 z-10">
-        <div className="mx-auto max-w-6xl flex flex-wrap items-center justify-between gap-2 px-3 py-2 sm:px-4 sm:py-3">
-          <div className="flex items-center gap-2 min-w-0">
-            <img src="/minha-logo.png" alt="Logo" className="h-8 sm:h-9 w-auto object-contain shrink-0" />
-            <div className="min-w-0">
-              <h1 className="text-base sm:text-lg font-black leading-none text-accent-foreground tracking-tight truncate">
-                <span className="text-primary">DEMANDAS</span>
-              </h1>
-              <p className="text-xs text-muted-foreground truncate">{roleLabel} · {displayName}</p>
-            </div>
-          </div>
-          <Button variant="ghost" size="sm" className="min-h-[44px] touch-manipulation shrink-0 text-accent-foreground hover:text-primary" onClick={signOut}>
-            <LogOut className="h-4 w-4 mr-1" /> Sair
-          </Button>
-        </div>
+      <header className="sticky top-0 z-10 border-b border-primary/20 bg-accent/95 backdrop-blur">
+        {headerContent}
       </header>
 
-      <main className="w-full max-w-[1920px] mx-auto px-4 py-6 space-y-6">
+      <main className="mx-auto w-full max-w-7xl space-y-6 px-4 py-6 sm:px-6">
         <Tabs defaultValue="demandas" className="space-y-6">
           <div className="flex items-center justify-between">
             <TabsList className={showUserManagement ? "h-11 flex-wrap" : "h-11"}>
