@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback } from "react";
-import { format, parseISO, startOfDay, addDays, addWeeks, startOfWeek, isSameDay } from "date-fns";
+import { format, parseISO, startOfDay, endOfDay, addDays, addWeeks, startOfWeek, isSameDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -136,14 +136,20 @@ export function DemandCalendarTimeline({
     return `${format(days[0], "d MMM", { locale: ptBR })} – ${format(end, "d MMM yyyy", { locale: ptBR })}`;
   }, [days]);
 
+  /** Mesmo recorte do gráfico: só demandas cujo período cruza os dias visíveis (navegação por semanas). */
   const summaryList = useMemo(() => {
-    return allIntervals.map(({ demand: d, start, end }) => ({
-      name: d.name,
-      start: new Date(start),
-      end: new Date(end),
-      id: d.id,
-    }));
-  }, [allIntervals]);
+    if (days.length === 0) return [];
+    const visibleStart = startOfDay(days[0]).getTime();
+    const visibleEnd = endOfDay(days[days.length - 1]).getTime();
+    return allIntervals
+      .filter(({ start, end }) => start <= visibleEnd && end >= visibleStart)
+      .map(({ demand: d, start, end }) => ({
+        name: d.name,
+        start: new Date(start),
+        end: new Date(end),
+        id: d.id,
+      }));
+  }, [allIntervals, days]);
 
   const renderBar = (demand: DemandRow, lane: number) => {
     const startAt = demand.start_at ? parseISO(demand.start_at) : parseISO(demand.due_at!);
@@ -355,7 +361,7 @@ export function DemandCalendarTimeline({
             <details className="group rounded-lg border border-border/40 bg-muted/20">
               <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-sm font-medium text-foreground marker:content-none [&::-webkit-details-marker]:hidden">
                 <List className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-                Lista rápida ({summaryList.length})
+                Lista rápida — período visível ({summaryList.length})
                 <span className="ml-auto text-xs font-normal text-muted-foreground group-open:hidden">Abrir</span>
                 <span className="ml-auto hidden text-xs font-normal text-muted-foreground group-open:inline">Fechar</span>
               </summary>
