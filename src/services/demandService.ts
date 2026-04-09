@@ -1,19 +1,31 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { DemandRow, DeliverableRow, DemandStatus } from "@/types/demands";
+import type { PhaseKey, PhaseLabelColumn } from "@/lib/demandPhases";
 
-const demandColumns =
-  "id,name,description,artist_name,solicitante_name,producer_name,status,phase_producao,phase_gravacao,phase_mix_master,start_at,due_at,created_by,created_at,updated_at";
+/**
+ * Garante rótulos de etapa mesmo quando o BD ainda não tem as colunas phase_*_label
+ * (migração não aplicada): o select explícito quebrava o PostgREST com "column does not exist".
+ */
+function normalizeDemandRow(row: DemandRow): DemandRow {
+  return {
+    ...row,
+    phase_producao_label: row.phase_producao_label ?? "",
+    phase_gravacao_label: row.phase_gravacao_label ?? "",
+    phase_mix_master_label: row.phase_mix_master_label ?? "",
+    phase_step_4: row.phase_step_4 ?? false,
+    phase_step_4_label: row.phase_step_4_label ?? "",
+    phase_step_5: row.phase_step_5 ?? false,
+    phase_step_5_label: row.phase_step_5_label ?? "",
+  };
+}
 
 const deliverableColumns =
   "id,demand_id,storage_path,file_name,comments,uploaded_by,created_at,updated_at";
 
 export async function listDemands(): Promise<DemandRow[]> {
-  const { data, error } = await supabase
-    .from("demands")
-    .select(demandColumns)
-    .order("created_at", { ascending: true });
+  const { data, error } = await supabase.from("demands").select("*").order("created_at", { ascending: true });
   if (error) throw error;
-  return (data ?? []) as DemandRow[];
+  return (data ?? []).map((row) => normalizeDemandRow(row as DemandRow));
 }
 
 export async function listDeliverables(): Promise<DeliverableRow[]> {
@@ -27,12 +39,16 @@ export async function updateDemandStatus(id: string, status: DemandStatus): Prom
   if (error) throw error;
 }
 
-export async function updateDemandPhase(
-  id: string,
-  phase: "phase_producao" | "phase_gravacao" | "phase_mix_master",
-  checked: boolean
-): Promise<void> {
+export async function updateDemandPhase(id: string, phase: PhaseKey, checked: boolean): Promise<void> {
   const { error } = await supabase.from("demands").update({ [phase]: checked }).eq("id", id);
+  if (error) throw error;
+}
+
+const PHASE_LABEL_MAX = 120;
+
+export async function updateDemandPhaseLabel(id: string, labelColumn: PhaseLabelColumn, value: string): Promise<void> {
+  const trimmed = value.trim().slice(0, PHASE_LABEL_MAX);
+  const { error } = await supabase.from("demands").update({ [labelColumn]: trimmed }).eq("id", id);
   if (error) throw error;
 }
 

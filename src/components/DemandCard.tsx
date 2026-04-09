@@ -12,27 +12,20 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Clock, Loader2, CheckCircle2, Play, Flag, Pencil, Trash2, RotateCcw, AlertTriangle, Eye } from "lucide-react";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Clock, Loader2, CheckCircle2, Play, Flag, Trash2, RotateCcw, AlertTriangle } from "lucide-react";
+import { NotesChecklistToggle } from "@/components/ui/notes-checklist-toggle";
 import DemandDeliverySection from "@/components/DemandDeliverySection";
+import { PhaseLabelInput } from "@/components/dashboard/PhaseLabelInput";
 import type { DemandRow, DeliverableRow } from "@/types/demands";
 import type { AppRole } from "@/hooks/useAuth";
 import { isDueSoon, isOverdue } from "@/lib/demands";
-
-type PhaseKey = "phase_producao" | "phase_gravacao" | "phase_mix_master";
-
-const PRODUCTION_PHASES: { key: PhaseKey; label: string }[] = [
-  { key: "phase_producao", label: "Produção" },
-  { key: "phase_gravacao", label: "Gravação" },
-  { key: "phase_mix_master", label: "Mix | Master" },
-];
+import {
+  PHASE_STEPS,
+  phaseCheckedFromDemand,
+  phaseLabelFromDemand,
+  type PhaseKey,
+  type UpdatePhaseLabelPayload,
+} from "@/lib/demandPhases";
 
 interface DemandCardProps {
   demand: DemandRow;
@@ -41,13 +34,22 @@ interface DemandCardProps {
   userId?: string;
   onUpdateStatus?: (id: string, newStatus: string) => void;
   onUpdatePhase?: (params: { id: string; phase: PhaseKey; checked: boolean }) => void;
+  onUpdatePhaseLabel?: (params: UpdatePhaseLabelPayload) => void;
   updatingPhase?: boolean;
+  updatingPhaseLabel?: boolean;
   onRefresh?: () => void;
   updating?: boolean;
   canEditOrDelete?: boolean;
-  onEdit?: (demand: DemandRow) => void;
   onDelete?: (id: string) => void;
   deleting?: boolean;
+  /** Abre o painel com todos os detalhes (somente leitura até usar Editar lá dentro). */
+  onViewDemand?: (demand: DemandRow) => void;
+}
+
+function isInteractiveDemandClickTarget(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null;
+  if (!el?.closest) return false;
+  return !!el.closest("button, a, input, textarea, select, [role='checkbox'], label");
 }
 
 const statusConfig: Record<string, { label: string; icon: React.ReactNode; className: string }> = {
@@ -75,24 +77,34 @@ export default function DemandCard({
   userId = "",
   onUpdateStatus,
   onUpdatePhase,
+  onUpdatePhaseLabel,
   updatingPhase = false,
+  updatingPhaseLabel = false,
   onRefresh,
   updating,
   canEditOrDelete = false,
-  onEdit,
   onDelete,
   deleting = false,
+  onViewDemand,
 }: DemandCardProps) {
   const config = statusConfig[demand.status] ?? statusConfig.aguardando;
   const dueSoon = isDueSoon(demand.due_at, demand.status);
   const overdue = isOverdue(demand.due_at, demand.status);
   const isProducer = role === "produtor";
   const showPhaseChecklist = demand.status === "em_producao";
-  const phaseChecked = (key: PhaseKey) => key === "phase_producao" ? demand.phase_producao : key === "phase_gravacao" ? demand.phase_gravacao : demand.phase_mix_master;
 
   return (
     <Card
-      className={`rounded-lg border-border transition-shadow hover:shadow-md overflow-hidden min-w-0 ${dueSoon || overdue ? "border-[hsl(var(--warning))]/50" : ""}`}
+      title={onViewDemand ? "Clique para ver detalhes" : undefined}
+      className={`rounded-lg border-border transition-shadow hover:shadow-md overflow-hidden min-w-0 ${dueSoon || overdue ? "border-[hsl(var(--warning))]/50" : ""} ${onViewDemand ? "cursor-pointer" : ""}`}
+      onClick={
+        onViewDemand
+          ? (e) => {
+              if (isInteractiveDemandClickTarget(e.target)) return;
+              onViewDemand(demand);
+            }
+          : undefined
+      }
     >
       <CardHeader className="p-3 pb-1 space-y-2">
         {/* Linha 1: artista + título + status + ações */}
@@ -110,72 +122,6 @@ export default function DemandCard({
                 {config.label}
               </span>
             </Badge>
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0 touch-manipulation" title="Abrir">
-                  <Eye className="h-3 w-3" />
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-                <DialogHeader>
-                  {demand.artist_name && (
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{demand.artist_name}</p>
-                  )}
-                  <DialogTitle className="text-lg pr-8">{demand.name}</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4 pt-2">
-                  {demand.description && (
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Descrição</p>
-                      <p className="text-sm text-foreground whitespace-pre-wrap">{demand.description}</p>
-                    </div>
-                  )}
-                  <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground border-t pt-4">
-                    {demand.solicitante_name && (
-                      <span>Solicitante: <strong className="text-foreground">{demand.solicitante_name}</strong></span>
-                    )}
-                    <span>Produtor: <strong className="text-foreground">{demand.producer_name}</strong></span>
-                    <span>Criada: {new Date(demand.created_at).toLocaleDateString("pt-BR")}</span>
-                    {demand.due_at && (
-                      <span>Prazo: <strong className="text-foreground">{new Date(demand.due_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</strong></span>
-                    )}
-                  </div>
-                  <div className="pt-2">
-                    <Badge className={config.className}>
-                      <span className="flex items-center gap-1">
-                        {config.icon}
-                        {config.label}
-                      </span>
-                    </Badge>
-                  </div>
-                  {showPhaseChecklist && (
-                    <div className="rounded-md border border-border/60 bg-muted/30 p-3 space-y-2">
-                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Fases</p>
-                      <div className="flex flex-wrap gap-x-4 gap-y-2">
-                        {PRODUCTION_PHASES.map(({ key, label }) => (
-                          <label
-                            key={key}
-                            className={`flex items-center gap-2 text-sm cursor-pointer select-none ${!isProducer ? "cursor-default opacity-90" : ""}`}
-                          >
-                            <Checkbox
-                              checked={phaseChecked(key)}
-                              disabled={!isProducer || updatingPhase}
-                              onCheckedChange={(checked) => isProducer && onUpdatePhase?.({ id: demand.id, phase: key, checked: checked === true })}
-                            />
-                            <span className="text-foreground">{label}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </DialogContent>
-            </Dialog>
-            {canEditOrDelete && onEdit && (
-              <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0 touch-manipulation" onClick={() => onEdit(demand)} title="Editar">
-                <Pencil className="h-3 w-3" />
-              </Button>
-            )}
             {canEditOrDelete && onDelete && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
@@ -223,22 +169,36 @@ export default function DemandCard({
           )}
         </div>
         {showPhaseChecklist && (
-          <div className="rounded-md border border-border/60 bg-muted/30 p-2 space-y-1.5">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Fases</p>
-            <div className="flex flex-wrap gap-x-3 gap-y-1">
-              {PRODUCTION_PHASES.map(({ key, label }) => (
-                <label
-                  key={key}
-                  className={`flex items-center gap-2 text-sm cursor-pointer select-none ${!isProducer ? "cursor-default opacity-90" : ""}`}
-                >
-                  <Checkbox
-                    checked={phaseChecked(key)}
-                    disabled={!isProducer || updatingPhase}
-                    onCheckedChange={(checked) => isProducer && onUpdatePhase?.({ id: demand.id, phase: key, checked: checked === true })}
-                  />
-                  <span className="text-foreground">{label}</span>
-                </label>
-              ))}
+          <div className="rounded-md border border-border/60 bg-muted/30 p-2 space-y-2">
+            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Etapas</p>
+            <div className="flex flex-col gap-2">
+              {PHASE_STEPS.map(({ key, labelColumn }, index) => {
+                const checked = phaseCheckedFromDemand(demand, key);
+                const labelText = phaseLabelFromDemand(demand, key);
+                const stepName = labelText.trim() || `Etapa ${index + 1}`;
+                return (
+                  <div key={key} className="flex items-center gap-2.5">
+                    <NotesChecklistToggle
+                      checked={checked}
+                      disabled={!isProducer || updatingPhase}
+                      onCheckedChange={(c) => isProducer && onUpdatePhase?.({ id: demand.id, phase: key, checked: c })}
+                      aria-label={checked ? `Desmarcar ${stepName}` : `Marcar ${stepName} como concluída`}
+                    />
+                    {isProducer ? (
+                      <PhaseLabelInput
+                        demandId={demand.id}
+                        value={labelText}
+                        disabled={false}
+                        saving={updatingPhaseLabel}
+                        onCommit={(v) => onUpdatePhaseLabel?.({ id: demand.id, labelColumn, value: v })}
+                        className="min-w-0 flex-1 border-0 border-b border-transparent bg-transparent px-0.5 py-0.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus-visible:border-primary focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-70"
+                      />
+                    ) : (
+                      <span className="min-w-0 flex-1 truncate text-sm text-foreground/90">{labelText || "—"}</span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}

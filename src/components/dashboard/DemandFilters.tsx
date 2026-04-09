@@ -66,7 +66,6 @@ export default function DemandFilters({
                   <SelectItem value="all">Todos os status</SelectItem>
                   <SelectItem value="aguardando">Aguardando</SelectItem>
                   <SelectItem value="em_producao">Em produção</SelectItem>
-                  <SelectItem value="concluido">Concluído</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={filterProducer} onValueChange={setFilterProducer}>

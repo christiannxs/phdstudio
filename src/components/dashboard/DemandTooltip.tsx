@@ -22,9 +22,9 @@ function formatDateTime(iso: string | null): string {
 interface DemandTooltipProps {
   demand: DemandRow;
   children: React.ReactNode;
-  /** Se true, mostra "Clique no dia para editar" no tooltip */
+  /** Legado: se true, mostra a mesma dica de detalhes (edição só no painel). */
   canEdit?: boolean;
-  /** Se true (e não canEdit), mostra "Clique para visualizar" */
+  /** Se true, mostra dica de abrir detalhes (edição pelo botão no painel). */
   viewOnly?: boolean;
   /** Quando preenchido, exibe mensagem de overflow em vez do conteúdo da demanda */
   overflowCount?: number;
@@ -79,7 +79,7 @@ export function DemandTooltip({
             </ul>
             {(canEdit || viewOnly) && (
               <p className="text-xs text-muted-foreground pt-1 border-t border-border/50">
-                {canEdit ? "Clique no dia para editar." : "Clique para visualizar."}
+                Clique para ver os detalhes. Quem puder editar verá a opção no painel.
               </p>
             )}
           </>

@@ -20,6 +20,13 @@ const mockDemands: DemandRow[] = [
     phase_producao: false,
     phase_gravacao: false,
     phase_mix_master: false,
+    phase_producao_label: "",
+    phase_gravacao_label: "",
+    phase_mix_master_label: "",
+    phase_step_4: false,
+    phase_step_4_label: "",
+    phase_step_5: false,
+    phase_step_5_label: "",
   },
   {
     id: "d2",
@@ -37,6 +44,13 @@ const mockDemands: DemandRow[] = [
     phase_producao: false,
     phase_gravacao: false,
     phase_mix_master: false,
+    phase_producao_label: "",
+    phase_gravacao_label: "",
+    phase_mix_master_label: "",
+    phase_step_4: false,
+    phase_step_4_label: "",
+    phase_step_5: false,
+    phase_step_5_label: "",
   },
 ];
 
@@ -72,8 +86,10 @@ vi.mock("sonner", () => ({
 describe("ProducerAvailabilityCalendar", () => {
   it("renders title and description", () => {
     render(<ProducerAvailabilityCalendar userId="user-1" />);
-    expect(screen.getByText("Quando estou ocupado")).toBeInTheDocument();
-    expect(screen.getByText(/Cada faixa = período em que você está ocupado/)).toBeInTheDocument();
+    expect(screen.getByText("Calendário de ocupação")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Do início ao término da entrega você fica alocado/),
+    ).toBeInTheDocument();
   });
 
   it("renders Hoje button", () => {
@@ -83,7 +99,10 @@ describe("ProducerAvailabilityCalendar", () => {
 
   it("shows hint when no day is selected", () => {
     render(<ProducerAvailabilityCalendar userId="user-1" />);
-    expect(screen.getByText("Clique em um dia para ver se você está ocupado ou livre.")).toBeInTheDocument();
+    expect(screen.getByText("Escolha um dia")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Toque numa data no calendário para ver resumo e lista de demandas/),
+    ).toBeInTheDocument();
   });
 
   it("renders calendar with demands and shows demand list when day is selected", () => {
@@ -127,6 +146,8 @@ describe("ProducerAvailabilityCalendar", () => {
 
   it("renders legend with visual hint (início → término)", () => {
     render(<ProducerAvailabilityCalendar userId="user-1" />);
-    expect(screen.getByText(/faixa = período ocupado \(início → término da entrega\)/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Número no canto do dia = quantas demandas atravessam aquela data \(entre início e entrega\)/),
+    ).toBeInTheDocument();
   });
 });

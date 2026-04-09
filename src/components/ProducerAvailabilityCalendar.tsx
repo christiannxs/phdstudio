@@ -6,7 +6,7 @@ import { Day as DayPickerDay } from "react-day-picker";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { CalendarDays, Clock3, Pencil, Plus } from "lucide-react";
+import { CalendarDays, Clock3, Eye, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useDemands } from "@/hooks/useDemands";
 import { demandsToDaysMap, type DemandsByDayMap } from "@/lib/demandsCalendar";
@@ -18,7 +18,7 @@ interface Props {
   /** Demandas a exibir (opcional; se não passado, usa useDemands()) */
   demands?: DemandRow[];
   isLoading?: boolean;
-  onEditDemand?: (demand: DemandRow) => void;
+  onViewDemand?: (demand: DemandRow) => void;
   onAddDemandWithDate?: (date: Date) => void;
   /** Título do card (ex: "Meu calendário de términos" ou "Calendário de demandas") */
   title?: string;
@@ -38,7 +38,7 @@ export default function ProducerAvailabilityCalendar({
   userId,
   demands: demandsProp,
   isLoading = false,
-  onEditDemand,
+  onViewDemand,
   onAddDemandWithDate,
   title = "Calendário de ocupação",
   description =
@@ -304,14 +304,14 @@ export default function ProducerAvailabilityCalendar({
                         );
                           return (
                             <li key={d.id}>
-                              {onEditDemand ? (
+                              {onViewDemand ? (
                                 <button
                                   type="button"
                                   className="w-full rounded-lg text-left transition hover:opacity-95"
-                                  onClick={() => onEditDemand(d)}
+                                  onClick={() => onViewDemand(d)}
                                 >
                                   <div className="flex items-start gap-2">
-                                    <Pencil className="mt-2 h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                                    <Eye className="mt-2 h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
                                     {content}
                                   </div>
                                 </button>

@@ -92,8 +92,8 @@ function getDayIndex(days: Date[], date: Date): number {
 export interface DemandCalendarTimelineProps {
   demands: DemandRow[];
   isLoading?: boolean;
+  /** Abre o painel de detalhes; edição só pelo botão dentro do painel. */
   onViewDemand?: (demand: DemandRow) => void;
-  onEditDemand?: (demand: DemandRow) => void;
   title?: string;
   description?: string;
   groupByProducer?: boolean;
@@ -104,13 +104,11 @@ export function DemandCalendarTimeline({
   demands,
   isLoading = false,
   onViewDemand,
-  onEditDemand,
   title = "Linha do tempo",
   description = "Período de cada demanda (início → entrega). Barras sobrepostas são empilhadas automaticamente.",
   groupByProducer = false,
   weeks = 4,
 }: DemandCalendarTimelineProps) {
-  const onBarClick = onViewDemand ?? onEditDemand;
   const [rangeStart, setRangeStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 0 }));
   const today = useMemo(() => startOfDay(new Date()), []);
 
@@ -166,10 +164,11 @@ export function DemandCalendarTimeline({
     const showLabel = widthPct >= 12;
 
     return (
-      <DemandTooltip key={demand.id} demand={demand} canEdit={!!onEditDemand && !onViewDemand} viewOnly={!!onViewDemand}>
+      <DemandTooltip key={demand.id} demand={demand} viewOnly={!!onViewDemand}>
         <button
           type="button"
-          className="group absolute flex items-center overflow-hidden rounded-md border border-primary/35 bg-primary/20 px-1.5 text-left shadow-sm transition-colors hover:border-primary/50 hover:bg-primary/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          disabled={!onViewDemand}
+          className="group absolute flex items-center overflow-hidden rounded-md border border-primary/35 bg-primary/20 px-1.5 text-left shadow-sm transition-colors hover:border-primary/50 hover:bg-primary/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-60"
           style={{
             left: `${leftPct}%`,
             width: `${widthPct}%`,
@@ -177,7 +176,7 @@ export function DemandCalendarTimeline({
             height: BAR_H,
             minWidth: 4,
           }}
-          onClick={() => onBarClick?.(demand)}
+          onClick={() => onViewDemand?.(demand)}
         >
           {showLabel && (
             <span className="block min-w-0 truncate text-[11px] font-medium leading-tight text-foreground/95">
@@ -387,8 +386,8 @@ export function DemandCalendarTimeline({
 
           <p className="text-xs text-muted-foreground">
             {onViewDemand
-              ? "Clique numa barra para abrir a demanda (somente leitura)."
-              : "Clique numa barra para editar a demanda."}
+              ? "Clique numa barra para ver os detalhes. Quem puder editar verá a opção no painel."
+              : null}
           </p>
 
           {isLoading && (

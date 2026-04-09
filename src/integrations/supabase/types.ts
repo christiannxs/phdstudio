@@ -39,8 +39,15 @@ export type Database = {
           id: string
           name: string
           phase_gravacao: boolean
+          phase_gravacao_label: string
           phase_mix_master: boolean
+          phase_mix_master_label: string
           phase_producao: boolean
+          phase_producao_label: string
+          phase_step_4: boolean
+          phase_step_4_label: string
+          phase_step_5: boolean
+          phase_step_5_label: string
           producer_name: string
           solicitante_name: string | null
           start_at: string | null
@@ -56,8 +63,15 @@ export type Database = {
           id?: string
           name: string
           phase_gravacao?: boolean
+          phase_gravacao_label?: string
           phase_mix_master?: boolean
+          phase_mix_master_label?: string
           phase_producao?: boolean
+          phase_producao_label?: string
+          phase_step_4?: boolean
+          phase_step_4_label?: string
+          phase_step_5?: boolean
+          phase_step_5_label?: string
           producer_name: string
           solicitante_name?: string | null
           start_at?: string | null
@@ -73,8 +87,15 @@ export type Database = {
           id?: string
           name?: string
           phase_gravacao?: boolean
+          phase_gravacao_label?: string
           phase_mix_master?: boolean
+          phase_mix_master_label?: string
           phase_producao?: boolean
+          phase_producao_label?: string
+          phase_step_4?: boolean
+          phase_step_4_label?: string
+          phase_step_5?: boolean
+          phase_step_5_label?: string
           producer_name?: string
           solicitante_name?: string | null
           start_at?: string | null

@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import type { DemandRow, DeliverableRow } from "@/types/demands";
 import type { AppRole } from "@/hooks/useAuth";
 import type { UseMutationResult } from "@tanstack/react-query";
+import type { PhaseKey, UpdatePhaseLabelPayload } from "@/lib/demandPhases";
 import { FileBarChart } from "lucide-react";
 
 const statusLabels: Record<string, string> = {
@@ -56,17 +57,20 @@ interface ArtistReportViewProps {
   onUpdateStatus: (id: string, newStatus: string) => void;
   onRefresh: () => void;
   canEditOrDelete: boolean;
-  onEdit: (demand: DemandRow) => void;
+  onViewDemand?: (demand: DemandRow) => void;
   onDelete: (id: string) => void;
   updateStatusMutation: UseMutationResult<void, Error, { id: string; status: "aguardando" | "em_producao" | "concluido" }, unknown>;
-  updatePhaseMutation: UseMutationResult<void, Error, { id: string; phase: "phase_producao" | "phase_gravacao" | "phase_mix_master"; checked: boolean }, unknown>;
+  updatePhaseMutation: UseMutationResult<void, Error, { id: string; phase: PhaseKey; checked: boolean }, unknown>;
+  updatePhaseLabelMutation: UseMutationResult<void, Error, UpdatePhaseLabelPayload, unknown>;
   deleteDemandMutation: UseMutationResult<void, Error, string, unknown>;
 }
 
 export default function ArtistReportView({
   demands,
   role,
+  onViewDemand,
   updatePhaseMutation: _updatePhaseMutation,
+  updatePhaseLabelMutation: _updatePhaseLabelMutation,
 }: ArtistReportViewProps) {
   const [selectedArtist, setSelectedArtist] = useState<string>("all");
 
@@ -128,7 +132,11 @@ export default function ArtistReportView({
             </TableHeader>
             <TableBody>
               {sortedDemands.map((d) => (
-                <TableRow key={d.id}>
+                <TableRow
+                  key={d.id}
+                  className={onViewDemand ? "cursor-pointer hover:bg-muted/50" : undefined}
+                  onClick={() => onViewDemand?.(d)}
+                >
                   <TableCell className="font-medium">{d.artist_name ?? "—"}</TableCell>
                   <TableCell>{d.name}</TableCell>
                   <TableCell>{d.producer_name}</TableCell>
