@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";

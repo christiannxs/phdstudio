@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { format, parseISO, startOfDay, addWeeks, startOfWeek, isBefore, isAfter } from "date-fns";
+import { format, parseISO, addWeeks, startOfWeek, isBefore, isAfter } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -8,7 +8,6 @@ import { DemandTooltip } from "@/components/dashboard/DemandTooltip";
 import type { DemandRow } from "@/types/demands";
 
 const ROW_HEIGHT = 40;
-const BAR_HEIGHT = 24;
 const TIMELINE_WEEKS = 6;
 
 const statusLabel: Record<string, string> = {

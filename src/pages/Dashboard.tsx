@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useProducers } from "@/hooks/useProducers";
@@ -10,14 +10,10 @@ import { handleApiError } from "@/lib/errors";
 import { toast } from "sonner";
 import type { DemandRow } from "@/types/demands";
 import { getPeriodStart, countDueSoon } from "@/lib/demands";
-import { supabase } from "@/integrations/supabase/client";
-import { useQueryClient } from "@tanstack/react-query";
-import { queryKeys } from "@/lib/query-keys";
 
 export default function Dashboard() {
   const { user, loading: authLoading, role, displayName, signOut } = useAuth();
   const { data: producers = [] } = useProducers(role);
-  const queryClient = useQueryClient();
   const {
     demands,
     deliverables,
@@ -39,35 +35,10 @@ export default function Dashboard() {
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [filterProducer, setFilterProducer] = useState<string>("all");
   const [dateFilter, setDateFilter] = useState<string>("all");
-  const lastUpdatedByUsRef = useRef<Map<string, number>>(new Map());
 
   const canEditOrDelete = role === "ceo" || role === "atendente" || role === "admin";
   /** Produtores editam no painel (sem excluir demandas; exclusão continua só para equipe). */
   const canEditFromView = canEditOrDelete || role === "produtor";
-
-  useEffect(() => {
-    const channel = supabase
-      .channel("demands-changes")
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "demands" },
-        (payload) => {
-          const newRow = payload.new as DemandRow;
-          const id = newRow?.id;
-          if (!id) return;
-          const now = Date.now();
-          if (lastUpdatedByUsRef.current.get(id) && now - lastUpdatedByUsRef.current.get(id)! < 2500) return;
-          queryClient.invalidateQueries({ queryKey: queryKeys.demands.all });
-          queryClient.invalidateQueries({ queryKey: queryKeys.deliverables.all });
-          const statusLabel = newRow.status === "concluido" ? "Concluída" : newRow.status === "em_producao" ? "Em produção" : "Aguardando";
-          toast.info(`Demanda atualizada: ${newRow.name} → ${statusLabel}`);
-        }
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [queryClient]);
 
   if (authLoading) return <div className="flex min-h-screen items-center justify-center"><div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" /></div>;
   if (!user) return <Navigate to="/auth" replace />;
@@ -124,7 +95,6 @@ export default function Dashboard() {
   };
 
   const handleUpdateStatus = async (id: string, newStatus: string) => {
-    lastUpdatedByUsRef.current.set(id, Date.now());
     setUpdatingId(id);
     try {
       await updateStatusMutation.mutateAsync({

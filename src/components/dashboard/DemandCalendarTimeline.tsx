@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import { format, parseISO, startOfDay, endOfDay, addDays, addWeeks, startOfWeek, isSameDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +8,8 @@ import { CalendarRange, ChevronLeft, ChevronRight, List } from "lucide-react";
 import { DemandTooltip } from "@/components/dashboard/DemandTooltip";
 import type { DemandRow } from "@/types/demands";
 
-const DAY_COLUMN_MIN = 40;
+const DAY_COLUMN_MIN = 24;
+const DAY_COLUMN_MAX = 40;
 const LABEL_WIDTH = 168;
 const BAR_H = 26;
 const LANE_GAP = 5;
@@ -110,7 +111,24 @@ export function DemandCalendarTimeline({
   weeks = 4,
 }: DemandCalendarTimelineProps) {
   const [rangeStart, setRangeStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 0 }));
+  const [containerWidth, setContainerWidth] = useState<number | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const today = useMemo(() => startOfDay(new Date()), []);
+
+  useEffect(() => {
+    const node = scrollContainerRef.current;
+    if (!node || typeof ResizeObserver === "undefined") return;
+
+    const updateWidth = () => setContainerWidth(node.clientWidth);
+    updateWidth();
+
+    const observer = new ResizeObserver(() => {
+      updateWidth();
+    });
+    observer.observe(node);
+
+    return () => observer.disconnect();
+  }, []);
 
   const days = useMemo(() => getDaysInRange(rangeStart, weeks), [rangeStart, weeks]);
   const byProducer = useMemo(() => getDemandsByProducer(demands), [demands]);
@@ -211,7 +229,16 @@ export function DemandCalendarTimeline({
 
   const hasData = groupByProducer ? byProducer.length > 0 : allIntervals.length > 0;
 
-  const minChartWidth = LABEL_WIDTH + days.length * DAY_COLUMN_MIN;
+  const dayColumnWidth = useMemo(() => {
+    if (!containerWidth) return DAY_COLUMN_MIN;
+    const availableForDays = containerWidth - LABEL_WIDTH;
+    const ideal = Math.floor(availableForDays / Math.max(days.length, 1));
+    return Math.max(DAY_COLUMN_MIN, Math.min(DAY_COLUMN_MAX, ideal));
+  }, [containerWidth, days.length]);
+
+  const chartBaseWidth = LABEL_WIDTH + days.length * dayColumnWidth;
+  const chartWidth = containerWidth ? Math.max(chartBaseWidth, containerWidth) : chartBaseWidth;
+  const hasHorizontalOverflow = containerWidth ? chartBaseWidth > containerWidth : true;
 
   return (
     <TooltipProvider delayDuration={280}>
@@ -257,8 +284,11 @@ export function DemandCalendarTimeline({
         </CardHeader>
 
         <CardContent className="space-y-4 pt-5">
-          <div className="overflow-x-auto rounded-xl border border-border/50 bg-muted/15 [-ms-overflow-style:none] [scrollbar-width:thin]">
-            <div className="min-w-max" style={{ minWidth: minChartWidth }}>
+          <div
+            ref={scrollContainerRef}
+            className={`${hasHorizontalOverflow ? "overflow-x-auto" : "overflow-x-hidden"} overflow-y-hidden rounded-xl border border-border/50 bg-muted/15 [-ms-overflow-style:none] [scrollbar-width:thin]`}
+          >
+            <div className="min-w-max" style={{ minWidth: chartWidth }}>
               {/* Cabeçalho dos dias */}
               <div className="flex border-b border-border/40 bg-muted/30">
                 <div
@@ -277,7 +307,7 @@ export function DemandCalendarTimeline({
                       <div
                         key={i}
                         className={`flex shrink-0 flex-col items-center justify-center gap-0.5 border-border/25 py-2 text-center ${isWeekStart && i > 0 ? "border-l border-border/50" : ""} ${isToday ? "bg-primary/[0.08]" : ""}`}
-                        style={{ minWidth: DAY_COLUMN_MIN, flex: 1 }}
+                        style={{ minWidth: dayColumnWidth, width: dayColumnWidth, flex: "0 0 auto" }}
                         title={format(day, "EEEE, d 'de' MMMM", { locale: ptBR })}
                       >
                         <span className="text-[10px] font-medium uppercase leading-none text-muted-foreground">

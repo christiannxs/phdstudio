@@ -67,6 +67,7 @@ interface ArtistReportViewProps {
 
 export default function ArtistReportView({
   demands,
+  deliverables,
   role,
   onViewDemand,
   updatePhaseMutation: _updatePhaseMutation,
@@ -82,6 +83,42 @@ export default function ArtistReportView({
   const sortedDemands = [...filteredDemands].sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   );
+
+  const statusCounts = {
+    aguardando: filteredDemands.filter((d) => d.status === "aguardando").length,
+    em_producao: filteredDemands.filter((d) => d.status === "em_producao").length,
+    concluido: filteredDemands.filter((d) => d.status === "concluido").length,
+  };
+
+  const latestDeliverableByDemand = new Map<string, DeliverableRow>();
+  for (const deliverable of deliverables) {
+    const current = latestDeliverableByDemand.get(deliverable.demand_id);
+    if (!current || new Date(deliverable.updated_at).getTime() > new Date(current.updated_at).getTime()) {
+      latestDeliverableByDemand.set(deliverable.demand_id, deliverable);
+    }
+  }
+
+  const getPhaseSummary = (demand: DemandRow) => {
+    const phases = [
+      { checked: demand.phase_producao, label: demand.phase_producao_label },
+      { checked: demand.phase_gravacao, label: demand.phase_gravacao_label },
+      { checked: demand.phase_mix_master, label: demand.phase_mix_master_label },
+      { checked: demand.phase_step_4, label: demand.phase_step_4_label },
+      { checked: demand.phase_step_5, label: demand.phase_step_5_label },
+    ];
+
+    const completed = phases.filter((phase) => phase.checked).length;
+    const pending = phases
+      .filter((phase) => !phase.checked)
+      .map((phase) => phase.label)
+      .filter(Boolean);
+
+    return {
+      completed,
+      total: phases.length,
+      pending,
+    };
+  };
 
   return (
     <div className="space-y-6">
@@ -105,6 +142,23 @@ export default function ArtistReportView({
         </Select>
       </div>
 
+      {filteredDemands.length > 0 && (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="rounded-lg border bg-card px-4 py-3">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Aguardando</p>
+            <p className="text-xl font-semibold">{statusCounts.aguardando}</p>
+          </div>
+          <div className="rounded-lg border bg-card px-4 py-3">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Em produção</p>
+            <p className="text-xl font-semibold">{statusCounts.em_producao}</p>
+          </div>
+          <div className="rounded-lg border bg-card px-4 py-3">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Concluídas</p>
+            <p className="text-xl font-semibold">{statusCounts.concluido}</p>
+          </div>
+        </div>
+      )}
+
       {filteredDemands.length === 0 ? (
         <p className="text-sm text-muted-foreground py-8 text-center rounded-lg border bg-muted/30">
           {selectedArtist === "all"
@@ -123,33 +177,76 @@ export default function ArtistReportView({
               <TableRow>
                 <TableHead>Artista</TableHead>
                 <TableHead>Demanda</TableHead>
+                <TableHead>Descrição</TableHead>
                 <TableHead>Produtor</TableHead>
                 <TableHead>Solicitante</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead className="whitespace-nowrap">Período</TableHead>
+                <TableHead className="whitespace-nowrap">Fases</TableHead>
+                <TableHead>Último entregável</TableHead>
                 <TableHead className="whitespace-nowrap">Criada em</TableHead>
+                <TableHead className="whitespace-nowrap">Atualizada em</TableHead>
                 <TableHead className="whitespace-nowrap">Prazo</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedDemands.map((d) => (
-                <TableRow
-                  key={d.id}
-                  className={onViewDemand ? "cursor-pointer hover:bg-muted/50" : undefined}
-                  onClick={() => onViewDemand?.(d)}
-                >
-                  <TableCell className="font-medium">{d.artist_name ?? "—"}</TableCell>
-                  <TableCell>{d.name}</TableCell>
-                  <TableCell>{d.producer_name}</TableCell>
-                  <TableCell className="text-muted-foreground">{d.solicitante_name ?? "—"}</TableCell>
-                  <TableCell>
-                    <Badge variant="secondary" className={statusClass[d.status] ?? ""}>
-                      {statusLabels[d.status] ?? d.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground whitespace-nowrap">{formatDate(d.created_at)}</TableCell>
-                  <TableCell className="text-muted-foreground whitespace-nowrap">{formatDateTime(d.due_at)}</TableCell>
-                </TableRow>
-              ))}
+              {sortedDemands.map((d) => {
+                const phaseSummary = getPhaseSummary(d);
+                const latestDeliverable = latestDeliverableByDemand.get(d.id);
+
+                return (
+                  <TableRow
+                    key={d.id}
+                    className={onViewDemand ? "cursor-pointer hover:bg-muted/50" : undefined}
+                    onClick={() => onViewDemand?.(d)}
+                  >
+                    <TableCell className="font-medium">{d.artist_name ?? "—"}</TableCell>
+                    <TableCell>{d.name}</TableCell>
+                    <TableCell className="max-w-[280px] text-muted-foreground">
+                      {d.description?.trim() ? d.description : "—"}
+                    </TableCell>
+                    <TableCell>{d.producer_name}</TableCell>
+                    <TableCell className="text-muted-foreground">{d.solicitante_name ?? "—"}</TableCell>
+                    <TableCell>
+                      <Badge variant="secondary" className={statusClass[d.status] ?? ""}>
+                        {statusLabels[d.status] ?? d.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground whitespace-nowrap">
+                      <div className="space-y-0.5">
+                        <p>Início: {formatDateTime(d.start_at)}</p>
+                        <p>Fim: {formatDateTime(d.due_at)}</p>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      <div className="space-y-0.5">
+                        <p>{phaseSummary.completed}/{phaseSummary.total} concluídas</p>
+                        <p className="text-xs">
+                          Pendentes: {phaseSummary.pending.length > 0 ? phaseSummary.pending.join(", ") : "nenhuma"}
+                        </p>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {latestDeliverable ? (
+                        <div className="space-y-0.5">
+                          <p>{latestDeliverable.file_name ?? "Arquivo sem nome"}</p>
+                          <p className="text-xs">
+                            Atualizado em {formatDateTime(latestDeliverable.updated_at)}
+                          </p>
+                          <p className="text-xs">
+                            {latestDeliverable.comments?.trim() ? latestDeliverable.comments : "Sem observações"}
+                          </p>
+                        </div>
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground whitespace-nowrap">{formatDate(d.created_at)}</TableCell>
+                    <TableCell className="text-muted-foreground whitespace-nowrap">{formatDateTime(d.updated_at)}</TableCell>
+                    <TableCell className="text-muted-foreground whitespace-nowrap">{formatDateTime(d.due_at)}</TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </div>

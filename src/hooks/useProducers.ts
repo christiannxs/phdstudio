@@ -3,6 +3,16 @@ import { supabase } from "@/integrations/supabase/client";
 import type { AppRole } from "@/hooks/useAuth";
 import { queryKeys } from "@/lib/query-keys";
 
+function normalizeProducerNames(names: Array<string | null | undefined>): string[] {
+  return Array.from(
+    new Set(
+      names
+        .map((name) => (typeof name === "string" ? name.trim() : ""))
+        .filter((name) => name.length > 0),
+    ),
+  ).sort((a, b) => a.localeCompare(b));
+}
+
 /**
  * Lista de produtores: tenta RPC get_producers; se falhar (ex.: migration não aplicada),
  * admin pode buscar direto de user_roles + profiles.
@@ -10,7 +20,7 @@ import { queryKeys } from "@/lib/query-keys";
 export async function fetchProducers(role: AppRole | null): Promise<string[]> {
   const { data, error } = await supabase.rpc("get_producers");
   if (!error && data != null) {
-    return data.map((r: { display_name: string }) => r.display_name);
+    return normalizeProducerNames(data.map((r: { display_name: string | null }) => r.display_name));
   }
   // Fallback: admin lê direto das tabelas (user_roles + profiles)
   if (role === "admin") {
@@ -25,7 +35,7 @@ export async function fetchProducers(role: AppRole | null): Promise<string[]> {
       .select("display_name")
       .in("user_id", userIds);
     if (profError || !profiles?.length) return [];
-    return profiles.map((p) => p.display_name).sort((a, b) => a.localeCompare(b));
+    return normalizeProducerNames(profiles.map((p) => p.display_name));
   }
   return [];
 }

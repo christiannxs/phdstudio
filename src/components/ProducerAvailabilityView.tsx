@@ -27,7 +27,10 @@ export default function ProducerAvailabilityView() {
   }, [rows]);
 
   const producers = useMemo(() => Array.from(byProducer.keys()).sort((a, b) => a.localeCompare(b)), [byProducer]);
-  const selectedRows = selectedProducer ? byProducer.get(selectedProducer) ?? [] : rows;
+  const selectedRows = useMemo(
+    () => (selectedProducer ? byProducer.get(selectedProducer) ?? [] : rows),
+    [selectedProducer, byProducer, rows]
+  );
 
   const byDate = useMemo(() => {
     const map = new Map<string, AvailabilityForViewRow[]>();
