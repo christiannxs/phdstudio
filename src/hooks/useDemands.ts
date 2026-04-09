@@ -3,11 +3,13 @@ import type { DemandStatus } from "@/types/demands";
 import { queryKeys } from "@/lib/query-keys";
 import { toast } from "sonner";
 import { handleApiError } from "@/lib/errors";
+import type { PhaseKey, UpdatePhaseLabelPayload } from "@/lib/demandPhases";
 import {
   listDemands,
   listDeliverables,
   updateDemandStatus,
   updateDemandPhase,
+  updateDemandPhaseLabel,
   deleteDemand,
 } from "@/services/demandService";
 
@@ -38,13 +40,21 @@ export function useDemands() {
       checked,
     }: {
       id: string;
-      phase: "phase_producao" | "phase_gravacao" | "phase_mix_master";
+      phase: PhaseKey;
       checked: boolean;
     }) => {
       await updateDemandPhase(id, phase, checked);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.demands.all }),
     onError: (e) => handleApiError(e, "Erro ao atualizar fase."),
+  });
+
+  const updatePhaseLabelMutation = useMutation({
+    mutationFn: async ({ id, labelColumn, value }: UpdatePhaseLabelPayload) => {
+      await updateDemandPhaseLabel(id, labelColumn, value);
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.demands.all }),
+    onError: (e) => handleApiError(e, "Erro ao salvar nome da etapa."),
   });
 
   const deleteDemandMutation = useMutation({
@@ -79,6 +89,7 @@ export function useDemands() {
     refetch,
     updateStatusMutation,
     updatePhaseMutation,
+    updatePhaseLabelMutation,
     deleteDemandMutation,
   };
 }

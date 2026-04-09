@@ -27,6 +27,7 @@ export default function Dashboard() {
     refetch,
     updateStatusMutation,
     updatePhaseMutation,
+    updatePhaseLabelMutation,
     deleteDemandMutation,
   } = useDemands();
 
@@ -41,6 +42,8 @@ export default function Dashboard() {
   const lastUpdatedByUsRef = useRef<Map<string, number>>(new Map());
 
   const canEditOrDelete = role === "ceo" || role === "atendente" || role === "admin";
+  /** Produtores editam no painel (sem excluir demandas; exclusão continua só para equipe). */
+  const canEditFromView = canEditOrDelete || role === "produtor";
 
   useEffect(() => {
     const channel = supabase
@@ -70,12 +73,23 @@ export default function Dashboard() {
   if (!user) return <Navigate to="/auth" replace />;
 
   const periodStart = getPeriodStart(dateFilter);
-  const filtered = demands.filter((d) => {
-    if (filterStatus !== "all" && d.status !== filterStatus) return false;
+
+  const matchesProducerAndPeriod = (d: DemandRow) => {
     if (filterProducer !== "all" && d.producer_name !== filterProducer) return false;
     if (periodStart && new Date(d.created_at) < periodStart) return false;
     return true;
+  };
+
+  /** Demandas não concluídas (a lista principal nunca mistura concluídas). */
+  const filteredActive = demands.filter((d) => {
+    if (!matchesProducerAndPeriod(d)) return false;
+    if (d.status === "concluido") return false;
+    if (filterStatus !== "all" && filterStatus !== "concluido" && d.status !== filterStatus) return false;
+    return true;
   });
+
+  /** Só concluídas; mesmos filtros de produtor/período (status do filtro “Concluído” foi removido do dropdown). */
+  const filteredCompleted = demands.filter((d) => d.status === "concluido" && matchesProducerAndPeriod(d));
 
   const dueSoonCount = countDueSoon(demands);
   const demandsForReport =
@@ -138,7 +152,8 @@ export default function Dashboard() {
         demandsError={demandsError}
         demandsErrorDetail={demandsErrorDetail}
         onRetryDemands={refetch}
-        filtered={filtered}
+        filteredActive={filteredActive}
+        filteredCompleted={filteredCompleted}
         counts={counts}
         dueSoonCount={dueSoonCount}
         filterStatus={filterStatus}
@@ -150,12 +165,11 @@ export default function Dashboard() {
         producers={producers}
         canEditOrDelete={canEditOrDelete}
         updatingId={updatingId}
-        editingDemand={editingDemand}
-        setEditingDemand={setEditingDemand}
         onViewDemand={setViewingDemand}
         refetch={refetch}
         updateStatusMutation={updateStatusMutation}
         updatePhaseMutation={updatePhaseMutation}
+        updatePhaseLabelMutation={updatePhaseLabelMutation}
         deleteDemandMutation={deleteDemandMutation}
         handleStatusCardClick={handleStatusCardClick}
         handleUpdateStatus={handleUpdateStatus}
@@ -181,7 +195,14 @@ export default function Dashboard() {
           }
         }}
         onUpdated={() => { refetch(); setEditingDemand(null); setViewingDemand(null); }}
-        readOnly={!!viewingDemand}
+        readOnly={!!viewingDemand && !editingDemand}
+        canEditFromView={canEditFromView}
+        onRequestEdit={() => {
+          if (viewingDemand) {
+            setEditingDemand(viewingDemand);
+            setViewingDemand(null);
+          }
+        }}
       />
     </div>
   );

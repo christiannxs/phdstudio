@@ -6,37 +6,41 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { NotesChecklistToggle } from "@/components/ui/notes-checklist-toggle";
+import { PhaseLabelInput } from "@/components/dashboard/PhaseLabelInput";
 import { useProducers } from "@/hooks/useProducers";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { DemandDateRangeCalendar } from "@/components/DemandDateRangeCalendar";
 import { ARTISTS } from "@/lib/artists";
-import { toast as sonnerToast } from "sonner";
+import type { DemandRow } from "@/types/demands";
+import { PHASE_STEPS, type PhaseKey, type PhaseLabelColumn } from "@/lib/demandPhases";
 
-export interface DemandForEdit {
-  id: string;
-  artist_name: string | null;
-  name: string;
-  description: string | null;
-  producer_name: string;
-  status: string;
-  start_at: string | null;
-  due_at: string | null;
-  created_by?: string | null;
-}
+export type DemandForEdit = DemandRow;
 
 interface Props {
-  demand: DemandForEdit | null;
+  demand: DemandRow | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onUpdated: () => void;
   /** Quando true, exibe somente leitura (visualizar), sem botão salvar. */
   readOnly?: boolean;
+  /** No modo leitura: usuário pode passar para edição (equipe ou produtor responsável). */
+  canEditFromView?: boolean;
+  onRequestEdit?: () => void;
 }
 
-export default function EditDemandDialog({ demand, open, onOpenChange, onUpdated, readOnly = false }: Props) {
-  const { role, user } = useAuth();
+export default function EditDemandDialog({
+  demand,
+  open,
+  onOpenChange,
+  onUpdated,
+  readOnly = false,
+  canEditFromView = false,
+  onRequestEdit,
+}: Props) {
+  const { role, user, displayName } = useAuth();
   const { data: producers = [] } = useProducers(role);
   const [artist, setArtist] = useState("");
   const [name, setName] = useState("");
@@ -49,6 +53,20 @@ export default function EditDemandDialog({ demand, open, onOpenChange, onUpdated
   const [dueTime, setDueTime] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [canEditDatesAndDetails, setCanEditDatesAndDetails] = useState(true);
+  const [phaseChecked, setPhaseChecked] = useState<Record<PhaseKey, boolean>>({
+    phase_producao: false,
+    phase_gravacao: false,
+    phase_mix_master: false,
+    phase_step_4: false,
+    phase_step_5: false,
+  });
+  const [phaseLabels, setPhaseLabels] = useState<Record<PhaseLabelColumn, string>>({
+    phase_producao_label: "",
+    phase_gravacao_label: "",
+    phase_mix_master_label: "",
+    phase_step_4_label: "",
+    phase_step_5_label: "",
+  });
 
   const isoToDateAndTime = (iso: string | null) => {
     if (!iso) return { date: "", time: "" };
@@ -70,9 +88,30 @@ export default function EditDemandDialog({ demand, open, onOpenChange, onUpdated
       setStartTime(start.time);
       setDueDate(due.date);
       setDueTime(due.time);
-      setCanEditDatesAndDetails(user?.id === demand.created_by);
+      const isStaff =
+        role === "atendente" || role === "ceo" || role === "admin";
+      const isCreator = Boolean(user?.id && demand.created_by && user.id === demand.created_by);
+      const isAssignedProducer =
+        role === "produtor" &&
+        displayName != null &&
+        demand.producer_name?.trim().toLowerCase() === displayName.trim().toLowerCase();
+      setCanEditDatesAndDetails(isCreator || isStaff || isAssignedProducer);
+      setPhaseChecked({
+        phase_producao: demand.phase_producao,
+        phase_gravacao: demand.phase_gravacao,
+        phase_mix_master: demand.phase_mix_master,
+        phase_step_4: demand.phase_step_4,
+        phase_step_5: demand.phase_step_5,
+      });
+      setPhaseLabels({
+        phase_producao_label: demand.phase_producao_label ?? "",
+        phase_gravacao_label: demand.phase_gravacao_label ?? "",
+        phase_mix_master_label: demand.phase_mix_master_label ?? "",
+        phase_step_4_label: demand.phase_step_4_label ?? "",
+        phase_step_5_label: demand.phase_step_5_label ?? "",
+      });
     }
-  }, [demand, user?.id]);
+  }, [demand, user?.id, role, displayName]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,6 +132,23 @@ export default function EditDemandDialog({ demand, open, onOpenChange, onUpdated
     }
     setSubmitting(true);
     try {
+      const isProducer = role === "produtor";
+      const persistPhases = isProducer && status === "em_producao";
+      const phasePayload = persistPhases
+        ? {
+            phase_producao: phaseChecked.phase_producao,
+            phase_gravacao: phaseChecked.phase_gravacao,
+            phase_mix_master: phaseChecked.phase_mix_master,
+            phase_step_4: phaseChecked.phase_step_4,
+            phase_step_5: phaseChecked.phase_step_5,
+            phase_producao_label: phaseLabels.phase_producao_label.trim(),
+            phase_gravacao_label: phaseLabels.phase_gravacao_label.trim(),
+            phase_mix_master_label: phaseLabels.phase_mix_master_label.trim(),
+            phase_step_4_label: phaseLabels.phase_step_4_label.trim(),
+            phase_step_5_label: phaseLabels.phase_step_5_label.trim(),
+          }
+        : {};
+
       const { error } = await supabase
         .from("demands")
         .update({
@@ -103,6 +159,7 @@ export default function EditDemandDialog({ demand, open, onOpenChange, onUpdated
           status: status as "aguardando" | "em_producao" | "concluido",
           start_at: canEditDatesAndDetails ? new Date(`${startDate}T${startTime}`).toISOString() : demand.start_at ?? null,
           due_at: canEditDatesAndDetails ? new Date(`${dueDate}T${dueTime}`).toISOString() : demand.due_at,
+          ...phasePayload,
         })
         .eq("id", demand.id);
       if (error) throw error;
@@ -114,11 +171,15 @@ export default function EditDemandDialog({ demand, open, onOpenChange, onUpdated
       toast.error("Erro ao atualizar: " + msg);
       // Ajuda a diferenciar erro de permissão (quando não é o criador)
       if (msg.toLowerCase().includes("permission") || msg.toLowerCase().includes("policy")) {
-        sonnerToast.error("Apenas quem criou a demanda pode alterar o término e os detalhes. Peça ao criador para ajustar.");
+        toast.error(
+          "Sem permissão para salvar. Confirme se você é o criador, integrante da equipe ou o produtor responsável por esta demanda."
+        );
       }
     }
     setSubmitting(false);
   };
+
+  const detailsLocked = readOnly || !canEditDatesAndDetails;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -131,7 +192,7 @@ export default function EditDemandDialog({ demand, open, onOpenChange, onUpdated
           <form onSubmit={handleSubmit} className="space-y-4 pr-1">
             <div className="space-y-2">
               <Label>Artista</Label>
-              <Select value={artist} onValueChange={setArtist} disabled={readOnly}>
+              <Select value={artist} onValueChange={setArtist} disabled={detailsLocked}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione o artista" />
                 </SelectTrigger>
@@ -150,9 +211,9 @@ export default function EditDemandDialog({ demand, open, onOpenChange, onUpdated
                 onChange={(e) => setName(e.target.value)}
                 required
                 placeholder="Ex: Beat Trap para artista X"
-                disabled={readOnly}
-                readOnly={readOnly}
-                className={readOnly ? "bg-muted/50" : ""}
+                disabled={detailsLocked}
+                readOnly={detailsLocked}
+                className={detailsLocked ? "bg-muted/50" : ""}
               />
             </div>
             <div className="space-y-2">
@@ -162,9 +223,9 @@ export default function EditDemandDialog({ demand, open, onOpenChange, onUpdated
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Detalhes sobre a demanda..."
-                disabled={readOnly}
-                readOnly={readOnly}
-                className={readOnly ? "bg-muted/50" : ""}
+                disabled={detailsLocked}
+                readOnly={detailsLocked}
+                className={detailsLocked ? "bg-muted/50" : ""}
               />
             </div>
             <Card className="border-muted bg-muted/30">
@@ -183,9 +244,9 @@ export default function EditDemandDialog({ demand, open, onOpenChange, onUpdated
                         value={startDate}
                         onChange={(e) => setStartDate(e.target.value)}
                         required={canEditDatesAndDetails}
-                        disabled={readOnly}
-                        readOnly={readOnly}
-                        className={readOnly ? "bg-muted/50" : ""}
+                        disabled={detailsLocked}
+                        readOnly={detailsLocked}
+                        className={detailsLocked ? "bg-muted/50" : ""}
                       />
                     </div>
                     <div className="space-y-1.5">
@@ -196,9 +257,9 @@ export default function EditDemandDialog({ demand, open, onOpenChange, onUpdated
                         value={startTime}
                         onChange={(e) => setStartTime(e.target.value)}
                         required={canEditDatesAndDetails}
-                        disabled={readOnly}
-                        readOnly={readOnly}
-                        className={readOnly ? "bg-muted/50" : ""}
+                        disabled={detailsLocked}
+                        readOnly={detailsLocked}
+                        className={detailsLocked ? "bg-muted/50" : ""}
                       />
                     </div>
                   </div>
@@ -214,9 +275,9 @@ export default function EditDemandDialog({ demand, open, onOpenChange, onUpdated
                         value={dueDate}
                         onChange={(e) => setDueDate(e.target.value)}
                         required={canEditDatesAndDetails}
-                        disabled={readOnly}
-                        readOnly={readOnly}
-                        className={readOnly ? "bg-muted/50" : ""}
+                        disabled={detailsLocked}
+                        readOnly={detailsLocked}
+                        className={detailsLocked ? "bg-muted/50" : ""}
                       />
                     </div>
                     <div className="space-y-1.5">
@@ -227,19 +288,26 @@ export default function EditDemandDialog({ demand, open, onOpenChange, onUpdated
                         value={dueTime}
                         onChange={(e) => setDueTime(e.target.value)}
                         required={canEditDatesAndDetails}
-                        disabled={readOnly}
-                        readOnly={readOnly}
-                        className={readOnly ? "bg-muted/50" : ""}
+                        disabled={detailsLocked}
+                        readOnly={detailsLocked}
+                        className={detailsLocked ? "bg-muted/50" : ""}
                       />
                     </div>
                   </div>
                 </div>
-                {!readOnly && <DemandDateRangeCalendar startDate={startDate} dueDate={dueDate} />}
+                {!readOnly && canEditDatesAndDetails && (
+                  <DemandDateRangeCalendar startDate={startDate} dueDate={dueDate} />
+                )}
               </CardContent>
             </Card>
             <div className="space-y-2">
               <Label>Produtor</Label>
-              <Select value={producer} onValueChange={setProducer} required disabled={producers.length === 0 || readOnly}>
+              <Select
+                value={producer}
+                onValueChange={setProducer}
+                required
+                disabled={producers.length === 0 || readOnly || role === "produtor"}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder={producers.length === 0 ? "Nenhum produtor cadastrado" : "Selecione o produtor"} />
                 </SelectTrigger>
@@ -263,10 +331,68 @@ export default function EditDemandDialog({ demand, open, onOpenChange, onUpdated
                 </SelectContent>
               </Select>
             </div>
+            {status === "em_producao" && (
+              <Card className="border-border/60 bg-muted/30">
+                <CardHeader className="pb-3 pt-4 px-4">
+                  <CardTitle className="text-sm font-medium">Etapas (checklist)</CardTitle>
+                  <p className="text-xs text-muted-foreground font-normal">
+                    {readOnly || role !== "produtor"
+                      ? "Visível em produção. O produtor pode marcar etapas e nomear cada uma."
+                      : "Marque as etapas concluídas e ajuste os nomes. Tudo será salvo ao clicar em Salvar alterações."}
+                  </p>
+                </CardHeader>
+                <CardContent className="px-4 pb-4 space-y-2">
+                  <div className="flex flex-col gap-2.5">
+                    {PHASE_STEPS.map(({ key, labelColumn }, index) => {
+                      const checked = phaseChecked[key];
+                      const rawLabel = phaseLabels[labelColumn] ?? "";
+                      const stepName = rawLabel.trim() || `Etapa ${index + 1}`;
+                      const isProducer = role === "produtor";
+                      const canEditPhases = !readOnly && isProducer;
+                      return (
+                        <div key={key} className="flex items-center gap-2.5">
+                          <NotesChecklistToggle
+                            checked={checked}
+                            disabled={!canEditPhases || submitting}
+                            onCheckedChange={(c) =>
+                              setPhaseChecked((prev) => ({ ...prev, [key]: c }))
+                            }
+                            aria-label={checked ? `Desmarcar ${stepName}` : `Marcar ${stepName} como concluída`}
+                          />
+                          {canEditPhases ? (
+                            <PhaseLabelInput
+                              demandId={`${demand.id}-${key}`}
+                              value={rawLabel}
+                              disabled={false}
+                              saving={submitting}
+                              onCommit={(v) =>
+                                setPhaseLabels((prev) => ({ ...prev, [labelColumn]: v }))
+                              }
+                              className="min-w-0 flex-1 border border-input rounded-md bg-background px-2 py-1.5 text-sm focus-visible:ring-2 focus-visible:ring-ring"
+                            />
+                          ) : (
+                            <span className="min-w-0 flex-1 text-sm text-foreground/90">
+                              {rawLabel.trim() || "—"}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
             {readOnly ? (
-              <Button type="button" variant="secondary" className="w-full" onClick={() => onOpenChange(false)}>
-                Fechar
-              </Button>
+              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={() => onOpenChange(false)}>
+                  Fechar
+                </Button>
+                {canEditFromView && onRequestEdit && (
+                  <Button type="button" className="w-full sm:w-auto" onClick={onRequestEdit}>
+                    Editar demanda
+                  </Button>
+                )}
+              </div>
             ) : (
               <Button type="submit" className="w-full" disabled={submitting || !producer || producers.length === 0}>
                 {submitting ? "Salvando..." : "Salvar alterações"}

@@ -20,7 +20,7 @@ const statusLabel: Record<string, string> = {
 interface DemandTimelineProps {
   demands: DemandRow[];
   isLoading?: boolean;
-  onEditDemand?: (demand: DemandRow) => void;
+  onViewDemand?: (demand: DemandRow) => void;
   title?: string;
   description?: string;
   /** Quando true, agrupa por produtor: uma linha por produtor, barras = períodos ocupados. */
@@ -58,9 +58,9 @@ function getDemandsByProducer(demands: DemandRow[]): { producerName: string; dem
 export function DemandTimeline({
   demands,
   isLoading = false,
-  onEditDemand,
+  onViewDemand,
   title = "Quando os produtores estão ocupados",
-  description = "Cada barra = período em que o produtor está ocupado (do início ao término da entrega). Clique na barra para editar.",
+  description = "Cada barra = período em que o produtor está ocupado (do início ao término da entrega). Clique na barra para ver os detalhes.",
   groupByProducer = false,
 }: DemandTimelineProps) {
   const [rangeStart, rangeEnd] = useMemo(() => {
@@ -85,15 +85,16 @@ export function DemandTimeline({
     const isOutOfRange = isBefore(dueAt, new Date(rangeStart)) || isAfter(startAt, new Date(rangeEnd));
     if (isOutOfRange || widthPct <= 0) return null;
     return (
-      <DemandTooltip key={demand.id} demand={demand} canEdit={!!onEditDemand}>
+      <DemandTooltip key={demand.id} demand={demand} viewOnly={!!onViewDemand}>
         <button
           type="button"
-          className="absolute top-1/2 -translate-y-1/2 h-6 rounded-md bg-destructive/25 hover:bg-destructive/40 transition-colors duration-150 flex items-center justify-center overflow-hidden min-w-[4px] focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background"
+          disabled={!onViewDemand}
+          className="absolute top-1/2 -translate-y-1/2 h-6 rounded-md bg-destructive/25 hover:bg-destructive/40 transition-colors duration-150 flex items-center justify-center overflow-hidden min-w-[4px] focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background disabled:pointer-events-none disabled:opacity-50"
           style={{
             left: `${leftPct}%`,
             width: `${Math.max(widthPct, 2)}%`,
           }}
-          onClick={() => onEditDemand?.(demand)}
+          onClick={() => onViewDemand?.(demand)}
         >
           <span className="text-[10px] font-medium text-destructive truncate px-1.5">
             {format(startAt, "dd/MM")} → {format(dueAt, "dd/MM")}
@@ -214,7 +215,7 @@ export function DemandTimeline({
 
           <p className="text-xs text-muted-foreground">
             Período exibido: {format(new Date(rangeStart), "d MMM", { locale: ptBR })} até{" "}
-            {format(new Date(rangeEnd), "d MMM yyyy", { locale: ptBR })}. Cada barra = produtor ocupado do início ao término. Clique na barra para editar.
+            {format(new Date(rangeEnd), "d MMM yyyy", { locale: ptBR })}. Cada barra = produtor ocupado do início ao término. Clique na barra para ver os detalhes.
           </p>
         </CardContent>
         {isLoading && (

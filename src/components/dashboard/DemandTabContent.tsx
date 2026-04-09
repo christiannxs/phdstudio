@@ -3,17 +3,18 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { LogOut, LayoutDashboard, UserPlus, AlertTriangle, FileBarChart, CalendarDays, CalendarRange, AlertCircle, Plus } from "lucide-react";
+import { LogOut, LayoutDashboard, UserPlus, AlertTriangle, FileBarChart, CalendarDays, CalendarRange, AlertCircle, Plus, ListTodo, CheckCircle2 } from "lucide-react";
 import UserManagement from "@/components/UserManagement";
 import ProducerAvailabilityCalendar from "@/components/ProducerAvailabilityCalendar";
 import { DemandCalendarTimeline } from "@/components/dashboard/DemandCalendarTimeline";
 import DemandStatsCards from "@/components/dashboard/DemandStatsCards";
 import DemandFilters from "@/components/dashboard/DemandFilters";
-import DemandKanban from "@/components/dashboard/DemandKanban";
+import DemandListSection from "@/components/dashboard/DemandListSection";
 import ArtistReportView from "@/components/dashboard/ArtistReportView";
 import type { DemandRow, DeliverableRow } from "@/types/demands";
 import type { AppRole } from "@/hooks/useAuth";
 import type { UseMutationResult } from "@tanstack/react-query";
+import type { PhaseKey, UpdatePhaseLabelPayload } from "@/lib/demandPhases";
 
 export interface DemandTabContentProps {
   role: AppRole | null;
@@ -27,7 +28,8 @@ export interface DemandTabContentProps {
   demandsError?: boolean;
   demandsErrorDetail?: Error | null;
   onRetryDemands?: () => void;
-  filtered: DemandRow[];
+  filteredActive: DemandRow[];
+  filteredCompleted: DemandRow[];
   counts: { aguardando: number; em_producao: number; concluido: number };
   dueSoonCount: number;
   filterStatus: string;
@@ -39,13 +41,12 @@ export interface DemandTabContentProps {
   producers: string[];
   canEditOrDelete: boolean;
   updatingId: string | null;
-  editingDemand: DemandRow | null;
-  setEditingDemand: (d: DemandRow | null) => void;
   /** Clique na barra da timeline abre visualização (somente leitura). */
   onViewDemand?: (d: DemandRow) => void;
   refetch: () => void;
   updateStatusMutation: UseMutationResult<void, Error, { id: string; status: "aguardando" | "em_producao" | "concluido" }, unknown>;
-  updatePhaseMutation: UseMutationResult<void, Error, { id: string; phase: "phase_producao" | "phase_gravacao" | "phase_mix_master"; checked: boolean }, unknown>;
+  updatePhaseMutation: UseMutationResult<void, Error, { id: string; phase: PhaseKey; checked: boolean }, unknown>;
+  updatePhaseLabelMutation: UseMutationResult<void, Error, UpdatePhaseLabelPayload, unknown>;
   deleteDemandMutation: UseMutationResult<void, Error, string, unknown>;
   handleStatusCardClick: (status: string) => void;
   handleUpdateStatus: (id: string, newStatus: string) => Promise<void>;
@@ -65,7 +66,8 @@ export default function DemandTabContent({
   demandsError,
   demandsErrorDetail,
   onRetryDemands,
-  filtered,
+  filteredActive,
+  filteredCompleted,
   counts,
   dueSoonCount,
   filterStatus,
@@ -77,12 +79,11 @@ export default function DemandTabContent({
   producers,
   canEditOrDelete,
   updatingId,
-  editingDemand,
-  setEditingDemand,
   onViewDemand,
   refetch,
   updateStatusMutation,
   updatePhaseMutation,
+  updatePhaseLabelMutation,
   deleteDemandMutation,
   handleStatusCardClick,
   handleUpdateStatus,
@@ -91,7 +92,19 @@ export default function DemandTabContent({
 }: DemandTabContentProps) {
   const [calendarProducer, setCalendarProducer] = useState<string>("all");
   const [availabilityView, setAvailabilityView] = useState<"calendar" | "timeline-calendar">("timeline-calendar");
-  const [organizationMode, setOrganizationMode] = useState<"status" | "producer" | "deadline">("status");
+  const [demandListTab, setDemandListTab] = useState<"ativas" | "concluidos">("ativas");
+  const [completedListMounted, setCompletedListMounted] = useState(false);
+
+  const handleStatusCardClickForList = (status: string) => {
+    if (status === "concluido") {
+      setDemandListTab("concluidos");
+      setCompletedListMounted(true);
+      if (filterStatus === "concluido") setFilterStatus("all");
+      return;
+    }
+    setDemandListTab("ativas");
+    handleStatusCardClick(status);
+  };
 
   const demandsForCalendar =
     role === "produtor" && displayName
@@ -130,7 +143,7 @@ export default function DemandTabContent({
               userId={userId}
               demands={demandsForCalendar}
               isLoading={demandsLoading}
-              onEditDemand={setEditingDemand}
+              onViewDemand={onViewDemand}
               onAddDemandWithDate={onOpenCreateDialog ? (date) => onOpenCreateDialog(date) : undefined}
               title="Sua ocupação"
               description="Entre o início e o término da entrega você aparece como alocado. O número no dia mostra quantas demandas cruzam aquela data; abra o dia para ver a lista."
@@ -182,7 +195,7 @@ export default function DemandTabContent({
             userId=""
             demands={demandsForCalendar}
             isLoading={demandsLoading}
-            onEditDemand={setEditingDemand}
+            onViewDemand={onViewDemand}
             title="Ocupação por produtor"
             description="Use “Agenda de” acima ou o filtro Produtor no card. O número no dia indica quantas demandas atravessam aquela data; abra o dia para ver detalhes."
             showProducerFilter
@@ -234,7 +247,8 @@ export default function DemandTabContent({
         <DemandStatsCards
           counts={counts}
           filterStatus={filterStatus}
-          onStatusCardClick={handleStatusCardClick}
+          onStatusCardClick={handleStatusCardClickForList}
+          completedListTabActive={demandListTab === "concluidos"}
         />
       </section>
 
@@ -274,30 +288,32 @@ export default function DemandTabContent({
             )}
           </div>
         ) : demandsLoading ? (
-          <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-            <div className="border-b border-border/60 bg-muted/30 px-4 py-3 sm:px-5">
-              <Skeleton className="h-5 w-44" />
-            </div>
-            <div className="overflow-x-auto p-4 sm:p-5">
-              <p className="sr-only">Carregando lista de demandas</p>
-              <div
-                className="grid min-w-[720px] gap-4 sm:gap-5"
-                style={{ gridTemplateColumns: "repeat(3, minmax(240px, 1fr))" }}
-                aria-hidden
-              >
-                {[1, 2, 3].map((col) => (
-                  <div key={col} className="flex min-h-[280px] flex-col rounded-lg border border-border/60 bg-muted/20 p-3">
-                    <Skeleton className="mb-3 h-7 w-28" />
-                    <div className="space-y-2">
-                      <Skeleton className="h-28 w-full rounded-lg" />
-                      <Skeleton className="h-28 w-full rounded-lg" />
-                    </div>
-                  </div>
-                ))}
+          <div className="overflow-hidden rounded-2xl border border-border/80 bg-card shadow-sm" aria-busy>
+            <div className="space-y-3 border-b border-border/60 bg-gradient-to-b from-muted/40 to-muted/10 px-4 py-4 sm:px-5">
+              <Skeleton className="h-6 w-48" />
+              <Skeleton className="h-4 w-full max-w-md" />
+              <div className="flex flex-wrap gap-2 pt-1">
+                <Skeleton className="h-10 w-full sm:w-28" />
+                <Skeleton className="h-10 w-full sm:w-28" />
+                <Skeleton className="h-10 w-full sm:w-28" />
               </div>
+              <Skeleton className="h-10 w-full max-w-[200px]" />
+            </div>
+            <div className="space-y-6 p-4 sm:p-5">
+              <p className="sr-only">Carregando lista de demandas</p>
+              {[1, 2].map((section) => (
+                <div key={section} className="space-y-3" aria-hidden>
+                  <Skeleton className="h-10 w-full rounded-lg" />
+                  <div className="space-y-2">
+                    <Skeleton className="h-24 w-full rounded-lg" />
+                    <Skeleton className="h-24 w-full rounded-lg" />
+                    <Skeleton className="h-24 w-full rounded-lg" />
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
-        ) : filtered.length === 0 ? (
+        ) : filteredActive.length === 0 && filteredCompleted.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-border bg-muted/30 px-4 py-16 text-center">
             <LayoutDashboard className="mb-1 h-12 w-12 text-muted-foreground/60" aria-hidden />
             <div>
@@ -314,56 +330,101 @@ export default function DemandTabContent({
             )}
           </div>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-            <div className="flex flex-col gap-3 border-b border-border/60 bg-muted/30 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-              <h3
-                id="demand-list-heading"
-                className="text-balance text-sm font-semibold uppercase tracking-wide text-foreground"
-              >
-                Lista de demandas
-              </h3>
-              <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                <label htmlFor="demand-org-select" className="sr-only">
-                  Organizar colunas por
-                </label>
-                <Select
-                  value={organizationMode}
-                  onValueChange={(v) => setOrganizationMode(v as "status" | "producer" | "deadline")}
-                >
-                  <SelectTrigger id="demand-org-select" className="min-h-11 w-full min-w-[min(100%,220px)] sm:w-[220px]">
-                    <SelectValue placeholder="Organizar por" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="status">Organizar por status</SelectItem>
-                    <SelectItem value="producer">Organizar por produtor</SelectItem>
-                    <SelectItem value="deadline">Organizar por prazo</SelectItem>
-                  </SelectContent>
-                </Select>
-                <span className="tabular-nums text-xs text-muted-foreground">
-                  {filtered.length} {filtered.length === 1 ? "item" : "itens"}
-                </span>
-              </div>
-            </div>
-            <div className="min-w-0 p-3 sm:p-4">
-              <DemandKanban
-                filtered={filtered}
-                deliverables={deliverables}
-                role={role}
-                userId={userId}
-                updatingId={updatingId}
-                onUpdateStatus={handleUpdateStatus}
-                onRefresh={refetch}
-                canEditOrDelete={canEditOrDelete}
-                onEdit={setEditingDemand}
-                onDelete={(id) => deleteDemandMutation.mutate(id)}
-                updateStatusMutation={updateStatusMutation}
-                updatePhaseMutation={updatePhaseMutation}
-                deleteDemandMutation={deleteDemandMutation}
-                organization={organizationMode}
-                ariaLabelledBy="demand-list-heading"
-              />
-            </div>
-          </div>
+          <Tabs
+            value={demandListTab}
+            onValueChange={(v) => {
+              const t = v as "ativas" | "concluidos";
+              setDemandListTab(t);
+              if (t === "concluidos") setCompletedListMounted(true);
+            }}
+            className="space-y-4"
+          >
+            <TabsList className="h-11 w-full justify-start sm:w-auto">
+              <TabsTrigger value="ativas" className="gap-2 px-4">
+                <ListTodo className="h-4 w-4 shrink-0" aria-hidden />
+                Em andamento
+                {filteredActive.length > 0 && (
+                  <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-[10px] tabular-nums text-muted-foreground sm:text-xs">
+                    {filteredActive.length}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="concluidos" className="gap-2 px-4">
+                <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden />
+                Concluídos
+                {filteredCompleted.length > 0 && (
+                  <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-[10px] tabular-nums text-muted-foreground sm:text-xs">
+                    {filteredCompleted.length}
+                  </span>
+                )}
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="ativas" className="mt-0 space-y-4 focus-visible:outline-none">
+              {filteredActive.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-12 text-center text-sm text-muted-foreground">
+                  Nenhuma demanda ativa com estes filtros. Finalizadas aparecem na aba{" "}
+                  <button
+                    type="button"
+                    className="font-medium text-primary underline-offset-4 hover:underline"
+                    onClick={() => {
+                      setDemandListTab("concluidos");
+                      setCompletedListMounted(true);
+                    }}
+                  >
+                    Concluídos
+                  </button>
+                  .
+                </div>
+              ) : (
+                <DemandListSection
+                  filtered={filteredActive}
+                  listVariant="active"
+                  deliverables={deliverables}
+                  role={role}
+                  userId={userId}
+                  updatingId={updatingId}
+                  onUpdateStatus={handleUpdateStatus}
+                  onRefresh={refetch}
+                  canEditOrDelete={canEditOrDelete}
+                  onDelete={(id) => deleteDemandMutation.mutate(id)}
+                  onViewDemand={onViewDemand}
+                  updatePhaseMutation={updatePhaseMutation}
+                  updatePhaseLabelMutation={updatePhaseLabelMutation}
+                  deleteDemandMutation={deleteDemandMutation}
+                  headingId="demand-list-heading-ativas"
+                />
+              )}
+            </TabsContent>
+
+            <TabsContent value="concluidos" className="mt-0 space-y-4 focus-visible:outline-none">
+              {!completedListMounted ? (
+                <p className="sr-only">Selecione a aba Concluídos para carregar a lista.</p>
+              ) : filteredCompleted.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-12 text-center text-sm text-muted-foreground">
+                  Nenhuma demanda concluída com estes filtros.
+                </div>
+              ) : (
+                <DemandListSection
+                  filtered={filteredCompleted}
+                  listVariant="completed"
+                  deliverables={deliverables}
+                  role={role}
+                  userId={userId}
+                  updatingId={updatingId}
+                  onUpdateStatus={handleUpdateStatus}
+                  onRefresh={refetch}
+                  canEditOrDelete={canEditOrDelete}
+                  onDelete={(id) => deleteDemandMutation.mutate(id)}
+                  onViewDemand={onViewDemand}
+                  updatePhaseMutation={updatePhaseMutation}
+                  updatePhaseLabelMutation={updatePhaseLabelMutation}
+                  deleteDemandMutation={deleteDemandMutation}
+                  headingId="demand-list-heading-concluidos"
+                />
+              )}
+            </TabsContent>
+          </Tabs>
         )}
       </section>
     </div>
@@ -448,10 +509,11 @@ export default function DemandTabContent({
               onUpdateStatus={handleUpdateStatus}
               onRefresh={refetch}
               canEditOrDelete={canEditOrDelete}
-              onEdit={setEditingDemand}
+              onViewDemand={onViewDemand}
               onDelete={(id) => deleteDemandMutation.mutate(id)}
               updateStatusMutation={updateStatusMutation}
               updatePhaseMutation={updatePhaseMutation}
+              updatePhaseLabelMutation={updatePhaseLabelMutation}
               deleteDemandMutation={deleteDemandMutation}
             />
           </TabsContent>

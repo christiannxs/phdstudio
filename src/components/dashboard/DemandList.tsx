@@ -2,6 +2,7 @@ import DemandCard from "@/components/DemandCard";
 import type { DemandRow, DeliverableRow } from "@/types/demands";
 import type { AppRole } from "@/hooks/useAuth";
 import type { UseMutationResult } from "@tanstack/react-query";
+import type { PhaseKey, UpdatePhaseLabelPayload } from "@/lib/demandPhases";
 
 interface DemandListProps {
   filtered: DemandRow[];
@@ -12,9 +13,15 @@ interface DemandListProps {
   onUpdateStatus: (id: string, newStatus: string) => void;
   onRefresh: () => void;
   canEditOrDelete: boolean;
-  onEdit: (demand: DemandRow) => void;
   onDelete: (id: string) => void;
-  updateStatusMutation: UseMutationResult<void, Error, { id: string; status: "aguardando" | "em_producao" | "concluido" }, unknown>;
+  onViewDemand?: (demand: DemandRow) => void;
+  updatePhaseMutation: UseMutationResult<
+    void,
+    Error,
+    { id: string; phase: PhaseKey; checked: boolean },
+    unknown
+  >;
+  updatePhaseLabelMutation: UseMutationResult<void, Error, UpdatePhaseLabelPayload, unknown>;
   deleteDemandMutation: UseMutationResult<void, Error, string, unknown>;
 }
 
@@ -27,26 +34,36 @@ export default function DemandList({
   onUpdateStatus,
   onRefresh,
   canEditOrDelete,
-  onEdit,
   onDelete,
-  updateStatusMutation,
+  onViewDemand,
+  updatePhaseMutation,
+  updatePhaseLabelMutation,
   deleteDemandMutation,
 }: DemandListProps) {
+  const deliverableByDemandId = new Map(deliverables.map((d) => [d.demand_id, d]));
+
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" role="list">
+    <div
+      className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:max-w-6xl lg:grid-cols-2 xl:grid-cols-2"
+      role="list"
+    >
       {filtered.map((d) => (
         <DemandCard
           key={d.id}
           demand={d}
           role={role}
-          deliverable={deliverables.find((x) => x.demand_id === d.id) ?? null}
+          deliverable={deliverableByDemandId.get(d.id) ?? null}
           userId={userId}
           onUpdateStatus={onUpdateStatus}
+          onUpdatePhase={updatePhaseMutation.mutate}
+          onUpdatePhaseLabel={updatePhaseLabelMutation.mutate}
+          updatingPhase={updatePhaseMutation.isPending && updatePhaseMutation.variables?.id === d.id}
+          updatingPhaseLabel={updatePhaseLabelMutation.isPending && updatePhaseLabelMutation.variables?.id === d.id}
           onRefresh={onRefresh}
           updating={updatingId === d.id}
           canEditOrDelete={canEditOrDelete}
-          onEdit={canEditOrDelete ? onEdit : undefined}
           onDelete={canEditOrDelete ? onDelete : undefined}
+          onViewDemand={onViewDemand}
           deleting={deleteDemandMutation.isPending}
         />
       ))}
