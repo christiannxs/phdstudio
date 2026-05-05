@@ -47,7 +47,11 @@ export default function Dashboard() {
 
   const matchesProducerAndPeriod = (d: DemandRow) => {
     if (filterProducer !== "all" && d.producer_name !== filterProducer) return false;
-    if (periodStart && new Date(d.created_at) < periodStart) return false;
+    if (periodStart) {
+      // Mostra a demanda se ela estava ativa no período: termina após o início do período
+      const activityDate = d.due_at ?? d.start_at ?? d.created_at;
+      if (new Date(activityDate) < periodStart) return false;
+    }
     return true;
   };
 

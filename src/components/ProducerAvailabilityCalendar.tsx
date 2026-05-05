@@ -215,7 +215,7 @@ export default function ProducerAvailabilityCalendar({
                 month={month}
                 onMonthChange={setMonth}
                 locale={ptBR}
-                disabled={(date) => date < startOfDay(new Date())}
+                disabled={false}
                 components={{ DayContent, Day: DayWithAria }}
                 classNames={{
                   day_selected:

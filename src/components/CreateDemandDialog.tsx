@@ -273,7 +273,7 @@ export default function CreateDemandDialog({ onCreated, open: controlledOpen, on
                         <FormItem>
                           <FormLabel className="text-muted-foreground font-normal">Data</FormLabel>
                           <FormControl>
-                            <Input type="date" required {...field} min={new Date().toISOString().slice(0, 10)} />
+                            <Input type="date" required {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -304,7 +304,7 @@ export default function CreateDemandDialog({ onCreated, open: controlledOpen, on
                         <FormItem>
                           <FormLabel className="text-muted-foreground font-normal">Data</FormLabel>
                           <FormControl>
-                            <Input type="date" required {...field} min={new Date().toISOString().slice(0, 10)} />
+                            <Input type="date" required {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>

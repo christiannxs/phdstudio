@@ -46,7 +46,7 @@ export function DemandDateRangeCalendar({ startDate, dueDate }: DemandDateRangeC
           day_range_middle:
             "demand-range-middle-day w-full h-full min-w-full min-h-full rounded-none bg-destructive/25 text-foreground hover:bg-destructive/25 focus:bg-destructive/25",
         }}
-        disabled={(date) => date < startOfDay(new Date())}
+        disabled={false}
       />
       <div className="mt-2 flex flex-wrap items-center justify-center gap-3 text-xs text-muted-foreground">
         <span className="flex items-center gap-1.5">
