@@ -295,7 +295,7 @@ export default function EditDemandDialog({
                     </div>
                   </div>
                 </div>
-                {!readOnly && canEditDatesAndDetails && (
+                {(startDate || dueDate) && (
                   <DemandDateRangeCalendar startDate={startDate} dueDate={dueDate} />
                 )}
               </CardContent>

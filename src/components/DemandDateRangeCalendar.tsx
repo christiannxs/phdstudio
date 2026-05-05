@@ -37,6 +37,7 @@ export function DemandDateRangeCalendar({ startDate, dueDate }: DemandDateRangeC
         selected={range}
         onSelect={() => {}}
         locale={ptBR}
+        defaultMonth={range?.from ?? new Date()}
         className="w-full max-w-none rounded-md border-0 demand-date-range-calendar"
         classNames={{
           day_range_start:
