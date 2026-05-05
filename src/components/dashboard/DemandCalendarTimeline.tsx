@@ -26,7 +26,7 @@ function statusStyle(status: string) {
 }
 
 function getDaysInRange(rangeStart: Date, numWeeks: number): Date[] {
-  const start = startOfWeek(rangeStart, { weekStartsOn: 0 });
+  const start = startOfWeek(rangeStart, { weekStartsOn: 1 });
   const days: Date[] = [];
   for (let i = 0; i < numWeeks * 7; i++) days.push(addDays(start, i));
   return days;
@@ -106,9 +106,9 @@ export function DemandCalendarTimeline({
   title = "Linha do tempo",
   description = "Cada barra representa o período de uma demanda (início → entrega). Clique para ver detalhes.",
   groupByProducer = false,
-  weeks = 4,
+  weeks = 1,
 }: DemandCalendarTimelineProps) {
-  const [rangeStart, setRangeStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 0 }));
+  const [rangeStart, setRangeStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [containerWidth, setContainerWidth] = useState<number | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const today = useMemo(() => startOfDay(new Date()), []);
@@ -130,12 +130,14 @@ export function DemandCalendarTimeline({
 
   const goPrev = useCallback(() => setRangeStart((p) => addWeeks(p, -1)), []);
   const goNext = useCallback(() => setRangeStart((p) => addWeeks(p, 1)), []);
-  const goToday = useCallback(() => setRangeStart(startOfWeek(new Date(), { weekStartsOn: 0 })), []);
+  const goToday = useCallback(() => setRangeStart(startOfWeek(new Date(), { weekStartsOn: 1 })), []);
 
   const rangeLabel = useMemo(() => {
     const end = days[days.length - 1];
-    const sameMonth = days[0].getMonth() === end.getMonth() && days[0].getFullYear() === end.getFullYear();
-    if (sameMonth) return format(days[0], "MMMM yyyy", { locale: ptBR });
+    const sameMonth = days[0].getMonth() === end.getMonth();
+    if (sameMonth) {
+      return `${format(days[0], "d", { locale: ptBR })} – ${format(end, "d 'de' MMMM yyyy", { locale: ptBR })}`;
+    }
     return `${format(days[0], "d MMM", { locale: ptBR })} – ${format(end, "d MMM yyyy", { locale: ptBR })}`;
   }, [days]);
 
