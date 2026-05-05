@@ -330,7 +330,6 @@ export default function EditDemandDialog({
                 <Select value={serviceType} onValueChange={setServiceType} disabled={readOnly}>
                   <SelectTrigger><SelectValue placeholder="Não especificado" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Não especificado</SelectItem>
                     {Object.entries(SERVICE_TYPE_LABELS).map(([v, l]) => (
                       <SelectItem key={v} value={v}>{l}</SelectItem>
                     ))}

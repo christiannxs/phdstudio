@@ -392,7 +392,6 @@ export default function CreateDemandDialog({ onCreated, open: controlledOpen, on
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="">Não especificado</SelectItem>
                         {Object.entries(SERVICE_TYPE_LABELS).map(([value, label]) => (
                           <SelectItem key={value} value={value}>{label}</SelectItem>
                         ))}
