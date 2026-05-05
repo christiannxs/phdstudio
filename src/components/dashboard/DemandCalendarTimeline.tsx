@@ -8,8 +8,7 @@ import { CalendarRange, ChevronLeft, ChevronRight, List } from "lucide-react";
 import { DemandTooltip } from "@/components/dashboard/DemandTooltip";
 import type { DemandRow } from "@/types/demands";
 
-const DAY_COLUMN_MIN = 24;
-const DAY_COLUMN_MAX = 40;
+const DAY_COLUMN_MIN = 40;
 const LABEL_WIDTH = 180;
 const BAR_H = 28;
 const LANE_GAP = 4;
@@ -156,11 +155,12 @@ export function DemandCalendarTimeline({
     [visibleIntervals]
   );
 
+  // Colunas preenchem o espaço disponível sem limite máximo
   const dayColumnWidth = useMemo(() => {
     if (!containerWidth) return DAY_COLUMN_MIN;
     const avail = containerWidth - LABEL_WIDTH;
     const ideal = Math.floor(avail / Math.max(days.length, 1));
-    return Math.max(DAY_COLUMN_MIN, Math.min(DAY_COLUMN_MAX, ideal));
+    return Math.max(DAY_COLUMN_MIN, ideal);
   }, [containerWidth, days.length]);
 
   const chartBaseWidth = LABEL_WIDTH + days.length * dayColumnWidth;

@@ -7,6 +7,7 @@ import type { PhaseKey, PhaseLabelColumn } from "@/lib/demandPhases";
  * (migração não aplicada): o select explícito quebrava o PostgREST com "column does not exist".
  */
 function normalizeDemandRow(row: DemandRow): DemandRow {
+  const r = row as Record<string, unknown>;
   return {
     ...row,
     phase_producao_label: row.phase_producao_label ?? "",
@@ -16,6 +17,14 @@ function normalizeDemandRow(row: DemandRow): DemandRow {
     phase_step_4_label: row.phase_step_4_label ?? "",
     phase_step_5: row.phase_step_5 ?? false,
     phase_step_5_label: row.phase_step_5_label ?? "",
+    // Campos financeiros: garante null (não undefined) quando a migration ainda não foi aplicada
+    service_type: (r.service_type ?? null) as DemandRow["service_type"],
+    price: (r.price ?? null) as DemandRow["price"],
+    payment_status: (r.payment_status ?? null) as DemandRow["payment_status"],
+    payment_date: (r.payment_date ?? null) as DemandRow["payment_date"],
+    payment_method: (r.payment_method ?? null) as DemandRow["payment_method"],
+    client_name: (r.client_name ?? null) as DemandRow["client_name"],
+    notes_finance: (r.notes_finance ?? null) as DemandRow["notes_finance"],
   };
 }
 

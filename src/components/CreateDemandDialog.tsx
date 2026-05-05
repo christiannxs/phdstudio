@@ -47,6 +47,7 @@ const createDemandSchema = z.object({
   producer: z.string().min(1, "Selecione um produtor"),
   service_type: z.string().optional().or(z.literal("")),
   price: z.string().optional().or(z.literal("")),
+  client_name: z.string().optional().or(z.literal("")),
 }).refine(
   (data) => {
     const start = new Date(`${data.startDate}T${data.startTime}`);
@@ -95,6 +96,7 @@ export default function CreateDemandDialog({ onCreated, open: controlledOpen, on
       producer: "",
       service_type: "",
       price: "",
+      client_name: "",
     },
   });
 
@@ -122,7 +124,11 @@ export default function CreateDemandDialog({ onCreated, open: controlledOpen, on
     const startAtISO = new Date(`${values.startDate}T${values.startTime}`).toISOString();
     const dueAtISO = dueDateTime.toISOString();
 
-    const priceValue = values.price?.trim() ? parseFloat(values.price.replace(",", ".")) : null;
+    const priceRaw = values.price?.trim().replace(",", ".");
+    const priceNum = priceRaw !== undefined && priceRaw !== "" ? parseFloat(priceRaw) : null;
+    const serviceType = values.service_type?.trim() || null;
+    const clientName = values.client_name?.trim() || null;
+
     const { error } = await supabase.from("demands").insert({
       artist_name: values.artist?.trim() || null,
       name: values.name.trim(),
@@ -132,8 +138,10 @@ export default function CreateDemandDialog({ onCreated, open: controlledOpen, on
       created_by: user.id,
       start_at: startAtISO,
       due_at: dueAtISO,
-      service_type: (values.service_type?.trim() || null) as never,
-      price: isNaN(priceValue!) ? null : priceValue,
+      // Campos financeiros: só incluídos quando têm valor (evita erro se migration não aplicada)
+      ...(serviceType ? { service_type: serviceType as never } : {}),
+      ...(priceNum != null && !isNaN(priceNum) ? { price: priceNum } : {}),
+      ...(clientName ? { client_name: clientName } : {}),
     });
     if (error) throw error;
     toast.success("Demanda criada com sucesso!");
@@ -148,6 +156,7 @@ export default function CreateDemandDialog({ onCreated, open: controlledOpen, on
       producer: isProducer && displayName ? displayName : "",
       service_type: "",
       price: "",
+      client_name: "",
     });
     setOpen(false);
     setConfirmAddOpen(false);
@@ -368,7 +377,7 @@ export default function CreateDemandDialog({ onCreated, open: controlledOpen, on
                 </FormItem>
               )}
             />
-            {/* Tipo de serviço + Valor */}
+            {/* Tipo de serviço + Valor + Responsável pela cobrança */}
             <div className="grid grid-cols-2 gap-3">
               <FormField
                 control={form.control}
@@ -398,14 +407,14 @@ export default function CreateDemandDialog({ onCreated, open: controlledOpen, on
                 name="price"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Valor (R$)</FormLabel>
+                    <FormLabel>Valor (R$) — pode ser 0</FormLabel>
                     <FormControl>
                       <Input
                         {...field}
                         type="number"
                         min="0"
                         step="0.01"
-                        placeholder="0,00 — opcional"
+                        placeholder="Ex: 500 ou 0"
                         inputMode="decimal"
                       />
                     </FormControl>
@@ -414,6 +423,22 @@ export default function CreateDemandDialog({ onCreated, open: controlledOpen, on
                 )}
               />
             </div>
+            <FormField
+              control={form.control}
+              name="client_name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Responsável pela cobrança</FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      placeholder="Nome do cliente ou responsável — opcional"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <Button
               type="submit"
