@@ -267,7 +267,7 @@ export default function DemandListItem({
               <Flag className="mr-1 h-3 w-3" /> Finalizar
             </Button>
           )}
-          {(role === "admin" || role === "atendente" || role === "ceo") && demand.status === "concluido" && (
+          {demand.status === "concluido" && (
             <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => onUpdateStatus?.(demand.id, "em_producao")} disabled={updating}>
               <RotateCcw className="mr-1 h-3 w-3" /> Reabrir
             </Button>
@@ -333,7 +333,7 @@ export default function DemandListItem({
         </AlertDialogContent>
       </AlertDialog>
 
-      {role === "produtor" && onRefresh && (demand.status === "em_producao" || demand.status === "concluido") && (
+      {onRefresh && (demand.status === "em_producao" || demand.status === "concluido") && (
         <div className="border-t border-border/40 px-2 pb-2 pt-1 sm:px-3">
           <Collapsible>
             <CollapsibleTrigger asChild>

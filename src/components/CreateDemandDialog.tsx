@@ -105,9 +105,7 @@ export default function CreateDemandDialog({ onCreated, open: controlledOpen, on
       const dueDateStr = format(initialDueDate, "yyyy-MM-dd");
       form.setValue("dueDate", dueDateStr);
       form.setValue("dueTime", "18:00");
-      const today = format(new Date(), "yyyy-MM-dd");
-      const startDateStr = today <= dueDateStr ? today : dueDateStr;
-      form.setValue("startDate", startDateStr);
+      form.setValue("startDate", dueDateStr);
       form.setValue("startTime", "09:00");
     }
   }, [open, initialDueDate, form]);

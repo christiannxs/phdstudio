@@ -36,9 +36,8 @@ export default function Dashboard() {
   const [filterProducer, setFilterProducer] = useState<string>("all");
   const [dateFilter, setDateFilter] = useState<string>("all");
 
-  const canEditOrDelete = role === "ceo" || role === "atendente" || role === "admin";
-  /** Produtores editam no painel (sem excluir demandas; exclusão continua só para equipe). */
-  const canEditFromView = canEditOrDelete || role === "produtor";
+  const canEditOrDelete = true;
+  const canEditFromView = true;
 
   if (authLoading) return <div className="flex min-h-screen items-center justify-center"><div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" /></div>;
   if (!user) return <Navigate to="/auth" replace />;

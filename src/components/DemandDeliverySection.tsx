@@ -48,8 +48,8 @@ export default function DemandDeliverySection({
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
 
   const [open, setOpen] = useState(false);
-  const canUpload = role === "produtor" || role === "atendente" || role === "ceo" || role === "admin";
-  const canDownload = role === "atendente" || role === "ceo" || role === "admin";
+  const canUpload = true;
+  const canDownload = true;
   const storagePath = deliverable?.storage_path ?? null;
   const hasFile = !!storagePath && !!deliverable?.file_name;
   const hasComments = !!(deliverable?.comments ?? commentsDraft)?.trim();

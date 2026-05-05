@@ -88,14 +88,7 @@ export default function EditDemandDialog({
       setStartTime(start.time);
       setDueDate(due.date);
       setDueTime(due.time);
-      const isStaff =
-        role === "atendente" || role === "ceo" || role === "admin";
-      const isCreator = Boolean(user?.id && demand.created_by && user.id === demand.created_by);
-      const isAssignedProducer =
-        role === "produtor" &&
-        displayName != null &&
-        demand.producer_name?.trim().toLowerCase() === displayName.trim().toLowerCase();
-      setCanEditDatesAndDetails(isCreator || isStaff || isAssignedProducer);
+      setCanEditDatesAndDetails(true);
       setPhaseChecked({
         phase_producao: demand.phase_producao,
         phase_gravacao: demand.phase_gravacao,
@@ -306,7 +299,7 @@ export default function EditDemandDialog({
                 value={producer}
                 onValueChange={setProducer}
                 required
-                disabled={producers.length === 0 || readOnly || role === "produtor"}
+                disabled={producers.length === 0 || readOnly}
               >
                 <SelectTrigger>
                   <SelectValue placeholder={producers.length === 0 ? "Nenhum produtor cadastrado" : "Selecione o produtor"} />
@@ -347,8 +340,7 @@ export default function EditDemandDialog({
                       const checked = phaseChecked[key];
                       const rawLabel = phaseLabels[labelColumn] ?? "";
                       const stepName = rawLabel.trim() || `Etapa ${index + 1}`;
-                      const isProducer = role === "produtor";
-                      const canEditPhases = !readOnly && isProducer;
+                      const canEditPhases = !readOnly;
                       return (
                         <div key={key} className="flex items-center gap-2.5">
                           <NotesChecklistToggle
