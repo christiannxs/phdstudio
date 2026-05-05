@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -107,31 +107,30 @@ export default function DemandTabContent({
     handleStatusCardClick(status);
   };
 
-  // Produtor vê por padrão só as suas; demais veem todos. Filtro manual disponível para todos.
-  const defaultProducer = role === “produtor” && displayName ? displayName : “all”;
+  const defaultProducer = role === "produtor" && displayName ? displayName : "all";
   const [calendarProducerInit] = useState(defaultProducer);
-  const effectiveCalendarProducer = calendarProducer === “all” || calendarProducer !== “”
+  const effectiveCalendarProducer = calendarProducer === "all" || calendarProducer !== ""
     ? calendarProducer
     : calendarProducerInit;
 
-  const demandsForCalendar = effectiveCalendarProducer === “all”
+  const demandsForCalendar = effectiveCalendarProducer === "all"
     ? demands
     : demands.filter((d) => d.producer_name === effectiveCalendarProducer);
 
   const availabilitySection = (
-    <div className=”space-y-4”>
+    <div className="space-y-4">
       {/* Controles: filtro de produtor + toggle de visualização */}
-      <div className=”flex flex-wrap items-center justify-between gap-3”>
-        <div className=”flex flex-wrap items-center gap-2”>
-          <label htmlFor=”cal-producer-select” className=”text-sm font-medium text-foreground”>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <label htmlFor="cal-producer-select" className="text-sm font-medium text-foreground">
             Agenda de
           </label>
           <Select value={calendarProducer} onValueChange={setCalendarProducer}>
-            <SelectTrigger id=”cal-producer-select” className=”h-9 w-[min(100%,200px)] text-sm”>
-              <SelectValue placeholder=”Todos os produtores” />
+            <SelectTrigger id="cal-producer-select" className="h-9 w-[min(100%,200px)] text-sm">
+              <SelectValue placeholder="Todos os produtores" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value=”all”>Todos os produtores</SelectItem>
+              <SelectItem value="all">Todos os produtores</SelectItem>
               {producers.map((name) => (
                 <SelectItem key={name} value={name}>{name}</SelectItem>
               ))}
@@ -139,14 +138,14 @@ export default function DemandTabContent({
           </Select>
         </div>
 
-        <Tabs value={availabilityView} onValueChange={(v) => setAvailabilityView(v as “calendar” | “timeline-calendar”)}>
-          <TabsList className=”h-9”>
-            <TabsTrigger value=”timeline-calendar” className=”gap-1.5 px-3 text-xs”>
-              <CalendarRange className=”h-3.5 w-3.5” />
+        <Tabs value={availabilityView} onValueChange={(v) => setAvailabilityView(v as "calendar" | "timeline-calendar")}>
+          <TabsList className="h-9">
+            <TabsTrigger value="timeline-calendar" className="gap-1.5 px-3 text-xs">
+              <CalendarRange className="h-3.5 w-3.5" />
               Linha do tempo
             </TabsTrigger>
-            <TabsTrigger value=”calendar” className=”gap-1.5 px-3 text-xs”>
-              <CalendarDays className=”h-3.5 w-3.5” />
+            <TabsTrigger value="calendar" className="gap-1.5 px-3 text-xs">
+              <CalendarDays className="h-3.5 w-3.5" />
               Calendário
             </TabsTrigger>
           </TabsList>
@@ -154,14 +153,14 @@ export default function DemandTabContent({
       </div>
 
       {/* Conteúdo */}
-      {availabilityView === “timeline-calendar” ? (
+      {availabilityView === "timeline-calendar" ? (
         <DemandCalendarTimeline
           demands={demandsForCalendar}
           isLoading={demandsLoading}
           onViewDemand={onViewDemand}
-          title=”Linha do tempo”
-          description=”Cada barra é o período da demanda (início → entrega). As cores indicam o status. Clique numa barra para ver e editar.”
-          groupByProducer={effectiveCalendarProducer === “all”}
+          title="Linha do tempo"
+          description="Cada barra é o período da demanda (início → entrega). As cores indicam o status. Clique numa barra para ver e editar."
+          groupByProducer={effectiveCalendarProducer === "all"}
         />
       ) : (
         <ProducerAvailabilityCalendar
@@ -170,9 +169,9 @@ export default function DemandTabContent({
           isLoading={demandsLoading}
           onViewDemand={onViewDemand}
           onAddDemandWithDate={onOpenCreateDialog ? (date) => onOpenCreateDialog(date) : undefined}
-          title=”Calendário de ocupação”
-          description=”O número no dia indica quantas demandas atravessam aquela data. Toque num dia para ver a lista detalhada.”
-          showProducerFilter={effectiveCalendarProducer === “all”}
+          title="Calendário de ocupação"
+          description="O número no dia indica quantas demandas atravessam aquela data. Toque num dia para ver a lista detalhada."
+          showProducerFilter={effectiveCalendarProducer === "all"}
         />
       )}
     </div>
