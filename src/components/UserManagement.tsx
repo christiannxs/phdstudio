@@ -13,17 +13,19 @@ import type { AppRole } from "@/hooks/useAuth";
 import { queryKeys } from "@/lib/query-keys";
 
 const ROLE_LABELS: Record<AppRole, string> = {
-  atendente: "Atendente",
-  produtor: "Produtor",
-  ceo: "CEO",
-  admin: "Desenvolvedor",
+  atendente:   "Atendente",
+  produtor:    "Produtor",
+  ceo:         "CEO",
+  admin:       "Desenvolvedor",
+  financeiro:  "Financeiro",
 };
 
 const ROLES: { value: AppRole; label: string }[] = [
-  { value: "atendente", label: "Atendente (sobe demandas)" },
-  { value: "produtor", label: "Produtor (Mhad ou Felipe 1x)" },
-  { value: "ceo", label: "CEO (acesso total)" },
-  { value: "admin", label: "Desenvolvedor (admin)" },
+  { value: "atendente",  label: "Atendente (sobe demandas)" },
+  { value: "produtor",   label: "Produtor (Mhad ou Felipe 1x)" },
+  { value: "ceo",        label: "CEO (acesso total)" },
+  { value: "financeiro", label: "Financeiro (cobrança e pagamentos)" },
+  { value: "admin",      label: "Desenvolvedor (admin)" },
 ];
 
 interface UserRow {
@@ -93,7 +95,7 @@ export default function UserManagement({ expandedByDefault = false }: UserManage
             <Users className="h-5 w-5 text-muted-foreground" />
             <div>
               <h2 className="text-lg font-semibold">Gerenciar usuários</h2>
-              <CardDescription>Cadastrar atendentes, CEOs, produtores</CardDescription>
+              <CardDescription>Cadastrar atendentes, CEOs, produtores e financeiro</CardDescription>
             </div>
           </div>
           {expanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
