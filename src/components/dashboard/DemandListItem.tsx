@@ -35,6 +35,7 @@ import {
 import type { DemandRow, DeliverableRow } from "@/types/demands";
 import type { AppRole } from "@/hooks/useAuth";
 import { isDueSoon, isOverdue } from "@/lib/demands";
+import { SERVICE_TYPE_LABELS, PAYMENT_STATUS_LABELS, PAYMENT_STATUS_STYLES, formatPrice } from "@/lib/demandFinancial";
 import { cn } from "@/lib/utils";
 import {
   PHASE_STEPS,
@@ -170,6 +171,23 @@ export default function DemandListItem({
               <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground line-clamp-1">{demand.artist_name}</p>
             )}
             <p className="text-sm font-semibold leading-snug text-foreground line-clamp-2 sm:line-clamp-1">{demand.name}</p>
+            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+              {demand.service_type && (
+                <span className="inline-flex rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                  {SERVICE_TYPE_LABELS[demand.service_type] ?? demand.service_type}
+                </span>
+              )}
+              {demand.price != null && (
+                <span className="inline-flex rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                  {formatPrice(demand.price)}
+                </span>
+              )}
+              {demand.payment_status && demand.payment_status !== "pending" && (
+                <span className={`inline-flex rounded border px-1.5 py-0.5 text-[10px] font-medium ${PAYMENT_STATUS_STYLES[demand.payment_status]}`}>
+                  {PAYMENT_STATUS_LABELS[demand.payment_status]}
+                </span>
+              )}
+            </div>
             <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground sm:hidden">
               {!omitProducerColumn && <span className="truncate font-medium text-foreground/90">{demand.producer_name}</span>}
               {demand.due_at ? (

@@ -32,12 +32,17 @@ export type Database = {
       demands: {
         Row: {
           artist_name: string | null
+          client_name: string | null
           created_at: string
           created_by: string
           description: string | null
           due_at: string | null
           id: string
           name: string
+          notes_finance: string | null
+          payment_date: string | null
+          payment_method: string | null
+          payment_status: Database["public"]["Enums"]["payment_status"] | null
           phase_gravacao: boolean
           phase_gravacao_label: string
           phase_mix_master: boolean
@@ -48,7 +53,9 @@ export type Database = {
           phase_step_4_label: string
           phase_step_5: boolean
           phase_step_5_label: string
+          price: number | null
           producer_name: string
+          service_type: Database["public"]["Enums"]["service_type"] | null
           solicitante_name: string | null
           start_at: string | null
           status: Database["public"]["Enums"]["demand_status"]
@@ -56,12 +63,17 @@ export type Database = {
         }
         Insert: {
           artist_name?: string | null
+          client_name?: string | null
           created_at?: string
           created_by: string
           description?: string | null
           due_at?: string | null
           id?: string
           name: string
+          notes_finance?: string | null
+          payment_date?: string | null
+          payment_method?: string | null
+          payment_status?: Database["public"]["Enums"]["payment_status"] | null
           phase_gravacao?: boolean
           phase_gravacao_label?: string
           phase_mix_master?: boolean
@@ -72,7 +84,9 @@ export type Database = {
           phase_step_4_label?: string
           phase_step_5?: boolean
           phase_step_5_label?: string
+          price?: number | null
           producer_name: string
+          service_type?: Database["public"]["Enums"]["service_type"] | null
           solicitante_name?: string | null
           start_at?: string | null
           status?: Database["public"]["Enums"]["demand_status"]
@@ -80,12 +94,17 @@ export type Database = {
         }
         Update: {
           artist_name?: string | null
+          client_name?: string | null
           created_at?: string
           created_by?: string
           description?: string | null
           due_at?: string | null
           id?: string
           name?: string
+          notes_finance?: string | null
+          payment_date?: string | null
+          payment_method?: string | null
+          payment_status?: Database["public"]["Enums"]["payment_status"] | null
           phase_gravacao?: boolean
           phase_gravacao_label?: string
           phase_mix_master?: boolean
@@ -96,7 +115,9 @@ export type Database = {
           phase_step_4_label?: string
           phase_step_5?: boolean
           phase_step_5_label?: string
+          price?: number | null
           producer_name?: string
+          service_type?: Database["public"]["Enums"]["service_type"] | null
           solicitante_name?: string | null
           start_at?: string | null
           status?: Database["public"]["Enums"]["demand_status"]
@@ -235,8 +256,10 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "atendente" | "produtor" | "ceo" | "admin"
+      app_role: "atendente" | "produtor" | "ceo" | "admin" | "financeiro"
       demand_status: "aguardando" | "em_producao" | "concluido"
+      payment_status: "pending" | "paid" | "overdue" | "cancelled"
+      service_type: "beatmaking" | "gravacao" | "mixagem" | "mastering" | "mix_master" | "aluguel" | "outro"
     }
     CompositeTypes: {
       [_ in never]: never

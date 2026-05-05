@@ -3,8 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { LogOut, LayoutDashboard, UserPlus, AlertTriangle, FileBarChart, CalendarDays, CalendarRange, AlertCircle, Plus, ListTodo, CheckCircle2 } from "lucide-react";
+import { LogOut, LayoutDashboard, UserPlus, AlertTriangle, FileBarChart, CalendarDays, CalendarRange, AlertCircle, Plus, ListTodo, CheckCircle2, Wallet } from "lucide-react";
 import UserManagement from "@/components/UserManagement";
+import FinancialDashboard from "@/components/dashboard/FinancialDashboard";
 import ProducerAvailabilityCalendar from "@/components/ProducerAvailabilityCalendar";
 import { DemandCalendarTimeline } from "@/components/dashboard/DemandCalendarTimeline";
 import DemandStatsCards from "@/components/dashboard/DemandStatsCards";
@@ -106,103 +107,76 @@ export default function DemandTabContent({
     handleStatusCardClick(status);
   };
 
-  const demandsForCalendar =
-    role === "produtor" && displayName
-      ? demands.filter((d) => d.producer_name === displayName)
-      : role === "ceo" || role === "atendente" || role === "admin"
-        ? calendarProducer === "all"
-          ? demands
-          : demands.filter((d) => d.producer_name === calendarProducer)
-        : [];
+  // Produtor vê por padrão só as suas; demais veem todos. Filtro manual disponível para todos.
+  const defaultProducer = role === “produtor” && displayName ? displayName : “all”;
+  const [calendarProducerInit] = useState(defaultProducer);
+  const effectiveCalendarProducer = calendarProducer === “all” || calendarProducer !== “”
+    ? calendarProducer
+    : calendarProducerInit;
 
-  const availabilitySection =
-    role === "produtor" && userId ? (
-      <div className="space-y-3">
-        <Tabs value={availabilityView} onValueChange={(v) => setAvailabilityView(v as "calendar" | "timeline-calendar")}>
-          <TabsList className="h-9 flex-wrap">
-            <TabsTrigger value="timeline-calendar" className="gap-2">
-              <CalendarRange className="h-4 w-4" />
+  const demandsForCalendar = effectiveCalendarProducer === “all”
+    ? demands
+    : demands.filter((d) => d.producer_name === effectiveCalendarProducer);
+
+  const availabilitySection = (
+    <div className=”space-y-4”>
+      {/* Controles: filtro de produtor + toggle de visualização */}
+      <div className=”flex flex-wrap items-center justify-between gap-3”>
+        <div className=”flex flex-wrap items-center gap-2”>
+          <label htmlFor=”cal-producer-select” className=”text-sm font-medium text-foreground”>
+            Agenda de
+          </label>
+          <Select value={calendarProducer} onValueChange={setCalendarProducer}>
+            <SelectTrigger id=”cal-producer-select” className=”h-9 w-[min(100%,200px)] text-sm”>
+              <SelectValue placeholder=”Todos os produtores” />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value=”all”>Todos os produtores</SelectItem>
+              {producers.map((name) => (
+                <SelectItem key={name} value={name}>{name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <Tabs value={availabilityView} onValueChange={(v) => setAvailabilityView(v as “calendar” | “timeline-calendar”)}>
+          <TabsList className=”h-9”>
+            <TabsTrigger value=”timeline-calendar” className=”gap-1.5 px-3 text-xs”>
+              <CalendarRange className=”h-3.5 w-3.5” />
               Linha do tempo
             </TabsTrigger>
-            <TabsTrigger value="calendar" className="gap-2">
-              <CalendarDays className="h-4 w-4" />
-              Calendário mensal
+            <TabsTrigger value=”calendar” className=”gap-1.5 px-3 text-xs”>
+              <CalendarDays className=”h-3.5 w-3.5” />
+              Calendário
             </TabsTrigger>
           </TabsList>
-          <TabsContent value="timeline-calendar" className="mt-3">
-            <DemandCalendarTimeline
-              demands={demandsForCalendar}
-              isLoading={demandsLoading}
-              onViewDemand={onViewDemand}
-              title="Linha do tempo"
-              description="Cada barra é o período da demanda (início até a entrega). Novas demandas passam a aparecer aqui automaticamente."
-            />
-          </TabsContent>
-          <TabsContent value="calendar" className="mt-3">
-            <ProducerAvailabilityCalendar
-              userId={userId}
-              demands={demandsForCalendar}
-              isLoading={demandsLoading}
-              onViewDemand={onViewDemand}
-              onAddDemandWithDate={onOpenCreateDialog ? (date) => onOpenCreateDialog(date) : undefined}
-              title="Sua ocupação"
-              description="Entre o início e o término da entrega você aparece como alocado. O número no dia mostra quantas demandas cruzam aquela data; abra o dia para ver a lista."
-            />
-          </TabsContent>
         </Tabs>
       </div>
-    ) : role === "ceo" || role === "atendente" || role === "admin" ? (
-      <div className="space-y-3">
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <label className="text-sm font-medium text-foreground">Agenda de</label>
-            <Select value={calendarProducer} onValueChange={setCalendarProducer}>
-              <SelectTrigger className="w-[min(100%,220px)] sm:w-[220px]">
-                <SelectValue placeholder="Todos os produtores" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os produtores</SelectItem>
-                {producers.map((name) => (
-                  <SelectItem key={name} value={name}>{name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <Tabs value={availabilityView} onValueChange={(v) => setAvailabilityView(v as "calendar" | "timeline-calendar")}>
-            <TabsList className="h-9 flex-wrap">
-              <TabsTrigger value="timeline-calendar" className="gap-2">
-                <CalendarRange className="h-4 w-4" />
-                Linha do tempo
-              </TabsTrigger>
-              <TabsTrigger value="calendar" className="gap-2">
-                <CalendarDays className="h-4 w-4" />
-                Calendário mensal
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
-        {availabilityView === "timeline-calendar" ? (
-          <DemandCalendarTimeline
-            demands={demandsForCalendar}
-            isLoading={demandsLoading}
-            onViewDemand={onViewDemand}
-            title="Linha do tempo"
-            description="Cada barra é o período da demanda (início até a entrega). Com “Todos os produtores”, as barras são agrupadas por nome."
-            groupByProducer={calendarProducer === "all"}
-          />
-        ) : (
-          <ProducerAvailabilityCalendar
-            userId=""
-            demands={demandsForCalendar}
-            isLoading={demandsLoading}
-            onViewDemand={onViewDemand}
-            title="Ocupação por produtor"
-            description="Use “Agenda de” acima ou o filtro Produtor no card. O número no dia indica quantas demandas atravessam aquela data; abra o dia para ver detalhes."
-            showProducerFilter
-          />
-        )}
-      </div>
-    ) : null;
+
+      {/* Conteúdo */}
+      {availabilityView === “timeline-calendar” ? (
+        <DemandCalendarTimeline
+          demands={demandsForCalendar}
+          isLoading={demandsLoading}
+          onViewDemand={onViewDemand}
+          title=”Linha do tempo”
+          description=”Cada barra é o período da demanda (início → entrega). As cores indicam o status. Clique numa barra para ver e editar.”
+          groupByProducer={effectiveCalendarProducer === “all”}
+        />
+      ) : (
+        <ProducerAvailabilityCalendar
+          userId={userId}
+          demands={demandsForCalendar}
+          isLoading={demandsLoading}
+          onViewDemand={onViewDemand}
+          onAddDemandWithDate={onOpenCreateDialog ? (date) => onOpenCreateDialog(date) : undefined}
+          title=”Calendário de ocupação”
+          description=”O número no dia indica quantas demandas atravessam aquela data. Toque num dia para ver a lista detalhada.”
+          showProducerFilter={effectiveCalendarProducer === “all”}
+        />
+      )}
+    </div>
+  );
 
   const canCreateDemand =
     role === "atendente" || role === "admin" || role === "ceo" || role === "produtor";
@@ -431,7 +405,8 @@ export default function DemandTabContent({
   );
 
   const showUserManagement = role === "admin";
-  const showTabs = role === "admin" || role === "ceo" || role === "atendente" || role === "produtor";
+  const showFinancial = role === "financeiro" || role === "ceo" || role === "admin";
+  const showTabs = role === "admin" || role === "ceo" || role === "atendente" || role === "produtor" || role === "financeiro";
 
   const headerContent = (
     <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
@@ -475,48 +450,68 @@ export default function DemandTabContent({
       </header>
 
       <main className="mx-auto w-full max-w-7xl space-y-6 px-4 py-6 sm:px-6">
-        <Tabs defaultValue="demandas" className="space-y-6">
+        <Tabs defaultValue={role === "financeiro" ? "financeiro" : "demandas"} className="space-y-6">
           <div className="flex items-center justify-between">
-            <TabsList className={showUserManagement ? "h-11 flex-wrap" : "h-11"}>
-              <TabsTrigger value="demandas" className="gap-2 px-4">
-                <LayoutDashboard className="h-4 w-4" />
-                Demandas
-              </TabsTrigger>
-              <TabsTrigger value="relatorio" className="gap-2 px-4">
-                <FileBarChart className="h-4 w-4" />
-                Relatório
-              </TabsTrigger>
+            <TabsList className="h-11 flex-wrap gap-0.5">
+              {role !== "financeiro" && (
+                <TabsTrigger value="demandas" className="gap-2 px-4">
+                  <LayoutDashboard className="h-4 w-4" />
+                  Demandas
+                </TabsTrigger>
+              )}
+              {role !== "financeiro" && (
+                <TabsTrigger value="relatorio" className="gap-2 px-4">
+                  <FileBarChart className="h-4 w-4" />
+                  Relatório
+                </TabsTrigger>
+              )}
+              {showFinancial && (
+                <TabsTrigger value="financeiro" className="gap-2 px-4">
+                  <Wallet className="h-4 w-4" />
+                  Financeiro
+                </TabsTrigger>
+              )}
               {showUserManagement && (
                 <TabsTrigger value="gerenciar-usuarios" className="gap-2 px-4">
                   <UserPlus className="h-4 w-4" />
-                  Gerenciar usuários
+                  Usuários
                 </TabsTrigger>
               )}
             </TabsList>
           </div>
 
-          <TabsContent value="demandas" className="space-y-6 mt-0">
-            {demandsContent}
-          </TabsContent>
+          {role !== "financeiro" && (
+            <TabsContent value="demandas" className="space-y-6 mt-0">
+              {demandsContent}
+            </TabsContent>
+          )}
 
-          <TabsContent value="relatorio" className="mt-0">
-            <ArtistReportView
-              demands={demandsForReport}
-              deliverables={deliverables}
-              role={role}
-              userId={userId}
-              updatingId={updatingId}
-              onUpdateStatus={handleUpdateStatus}
-              onRefresh={refetch}
-              canEditOrDelete={canEditOrDelete}
-              onViewDemand={onViewDemand}
-              onDelete={(id) => deleteDemandMutation.mutate(id)}
-              updateStatusMutation={updateStatusMutation}
-              updatePhaseMutation={updatePhaseMutation}
-              updatePhaseLabelMutation={updatePhaseLabelMutation}
-              deleteDemandMutation={deleteDemandMutation}
-            />
-          </TabsContent>
+          {role !== "financeiro" && (
+            <TabsContent value="relatorio" className="mt-0">
+              <ArtistReportView
+                demands={demandsForReport}
+                deliverables={deliverables}
+                role={role}
+                userId={userId}
+                updatingId={updatingId}
+                onUpdateStatus={handleUpdateStatus}
+                onRefresh={refetch}
+                canEditOrDelete={canEditOrDelete}
+                onViewDemand={onViewDemand}
+                onDelete={(id) => deleteDemandMutation.mutate(id)}
+                updateStatusMutation={updateStatusMutation}
+                updatePhaseMutation={updatePhaseMutation}
+                updatePhaseLabelMutation={updatePhaseLabelMutation}
+                deleteDemandMutation={deleteDemandMutation}
+              />
+            </TabsContent>
+          )}
+
+          {showFinancial && (
+            <TabsContent value="financeiro" className="mt-0">
+              <FinancialDashboard demands={demands} onViewDemand={onViewDemand} />
+            </TabsContent>
+          )}
 
           {showUserManagement && (
             <TabsContent value="gerenciar-usuarios" className="mt-0">

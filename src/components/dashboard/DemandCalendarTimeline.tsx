@@ -10,18 +10,25 @@ import type { DemandRow } from "@/types/demands";
 
 const DAY_COLUMN_MIN = 24;
 const DAY_COLUMN_MAX = 40;
-const LABEL_WIDTH = 168;
-const BAR_H = 26;
-const LANE_GAP = 5;
+const LABEL_WIDTH = 180;
+const BAR_H = 28;
+const LANE_GAP = 4;
 const ROW_PAD_Y = 10;
 
-/** Gera os dias exibidos (a partir do domingo da semana de rangeStart). */
+const STATUS_STYLES: Record<string, { bar: string; dot: string; label: string }> = {
+  aguardando:  { bar: "border-amber-500/50 bg-amber-500/20 hover:bg-amber-500/30",   dot: "bg-amber-400",   label: "Aguardando" },
+  em_producao: { bar: "border-blue-500/50  bg-blue-500/20  hover:bg-blue-500/30",    dot: "bg-blue-400",    label: "Em produção" },
+  concluido:   { bar: "border-emerald-500/50 bg-emerald-500/20 hover:bg-emerald-500/30", dot: "bg-emerald-400", label: "Concluído" },
+};
+
+function statusStyle(status: string) {
+  return STATUS_STYLES[status] ?? STATUS_STYLES["aguardando"];
+}
+
 function getDaysInRange(rangeStart: Date, numWeeks: number): Date[] {
   const start = startOfWeek(rangeStart, { weekStartsOn: 0 });
   const days: Date[] = [];
-  for (let i = 0; i < numWeeks * 7; i++) {
-    days.push(addDays(start, i));
-  }
+  for (let i = 0; i < numWeeks * 7; i++) days.push(addDays(start, i));
   return days;
 }
 
@@ -39,47 +46,39 @@ function toSortedIntervals(demands: DemandRow[]): IntervalItem[] {
     .sort((a, b) => a.start - b.start || a.end - b.end);
 }
 
-/** Atribui faixas empilhadas para períodos que se sobrepõem (greedy por ordem de início). */
 function assignLanes(intervals: IntervalItem[]): Map<string, number> {
   const laneLastEnd: number[] = [];
   const map = new Map<string, number>();
   for (const item of intervals) {
     let lane = -1;
     for (let i = 0; i < laneLastEnd.length; i++) {
-      if (item.start >= laneLastEnd[i]) {
-        lane = i;
-        break;
-      }
+      if (item.start >= laneLastEnd[i]) { lane = i; break; }
     }
-    if (lane === -1) {
-      lane = laneLastEnd.length;
-      laneLastEnd.push(item.end);
-    } else {
-      laneLastEnd[lane] = item.end;
-    }
+    if (lane === -1) { lane = laneLastEnd.length; laneLastEnd.push(item.end); }
+    else laneLastEnd[lane] = item.end;
     map.set(item.demand.id, lane);
   }
   return map;
 }
 
-function laneCountFromMap(laneMap: Map<string, number>): number {
+function laneCount(laneMap: Map<string, number>): number {
   if (laneMap.size === 0) return 0;
   return Math.max(...laneMap.values()) + 1;
 }
 
-function rowInnerHeight(lanes: number): number {
+function rowHeight(lanes: number): number {
   if (lanes <= 0) return ROW_PAD_Y * 2 + BAR_H;
   return ROW_PAD_Y * 2 + lanes * BAR_H + Math.max(0, lanes - 1) * LANE_GAP;
 }
 
-function getDemandsByProducer(demands: DemandRow[]): { producerName: string; demands: DemandRow[] }[] {
-  const byProducer = new Map<string, DemandRow[]>();
+function groupByProducerFn(demands: DemandRow[]) {
+  const map = new Map<string, DemandRow[]>();
   for (const d of demands) {
     const name = d.producer_name ?? "Sem produtor";
-    if (!byProducer.has(name)) byProducer.set(name, []);
-    byProducer.get(name)!.push(d);
+    if (!map.has(name)) map.set(name, []);
+    map.get(name)!.push(d);
   }
-  return Array.from(byProducer.entries())
+  return Array.from(map.entries())
     .map(([producerName, list]) => ({ producerName, demands: list }))
     .filter(({ demands: ds }) => ds.some((d) => d.due_at))
     .sort((a, b) => a.producerName.localeCompare(b.producerName));
@@ -93,7 +92,6 @@ function getDayIndex(days: Date[], date: Date): number {
 export interface DemandCalendarTimelineProps {
   demands: DemandRow[];
   isLoading?: boolean;
-  /** Abre o painel de detalhes; edição só pelo botão dentro do painel. */
   onViewDemand?: (demand: DemandRow) => void;
   title?: string;
   description?: string;
@@ -106,66 +104,66 @@ export function DemandCalendarTimeline({
   isLoading = false,
   onViewDemand,
   title = "Linha do tempo",
-  description = "Período de cada demanda (início → entrega). Barras sobrepostas são empilhadas automaticamente.",
+  description = "Cada barra representa o período de uma demanda (início → entrega). Clique para ver detalhes.",
   groupByProducer = false,
   weeks = 4,
 }: DemandCalendarTimelineProps) {
   const [rangeStart, setRangeStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 0 }));
   const [containerWidth, setContainerWidth] = useState<number | null>(null);
-  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
   const today = useMemo(() => startOfDay(new Date()), []);
 
   useEffect(() => {
-    const node = scrollContainerRef.current;
+    const node = scrollRef.current;
     if (!node || typeof ResizeObserver === "undefined") return;
-
-    const updateWidth = () => setContainerWidth(node.clientWidth);
-    updateWidth();
-
-    const observer = new ResizeObserver(() => {
-      updateWidth();
-    });
-    observer.observe(node);
-
-    return () => observer.disconnect();
+    const update = () => setContainerWidth(node.clientWidth);
+    update();
+    const obs = new ResizeObserver(update);
+    obs.observe(node);
+    return () => obs.disconnect();
   }, []);
 
   const days = useMemo(() => getDaysInRange(rangeStart, weeks), [rangeStart, weeks]);
-  const byProducer = useMemo(() => getDemandsByProducer(demands), [demands]);
-
+  const byProducer = useMemo(() => groupByProducerFn(demands), [demands]);
   const allIntervals = useMemo(() => toSortedIntervals(demands), [demands]);
   const singleLaneMap = useMemo(() => assignLanes(allIntervals), [allIntervals]);
-  const singleLanes = laneCountFromMap(singleLaneMap);
 
-  const goPrev = useCallback(() => {
-    setRangeStart((prev) => addWeeks(prev, -1));
-  }, []);
-  const goNext = useCallback(() => {
-    setRangeStart((prev) => addWeeks(prev, 1));
-  }, []);
-  const goToday = useCallback(() => {
-    setRangeStart(startOfWeek(new Date(), { weekStartsOn: 0 }));
-  }, []);
+  const goPrev = useCallback(() => setRangeStart((p) => addWeeks(p, -1)), []);
+  const goNext = useCallback(() => setRangeStart((p) => addWeeks(p, 1)), []);
+  const goToday = useCallback(() => setRangeStart(startOfWeek(new Date(), { weekStartsOn: 0 })), []);
 
   const rangeLabel = useMemo(() => {
     const end = days[days.length - 1];
+    const sameMonth = days[0].getMonth() === end.getMonth() && days[0].getFullYear() === end.getFullYear();
+    if (sameMonth) return format(days[0], "MMMM yyyy", { locale: ptBR });
     return `${format(days[0], "d MMM", { locale: ptBR })} – ${format(end, "d MMM yyyy", { locale: ptBR })}`;
   }, [days]);
 
-  /** Mesmo recorte do gráfico: só demandas cujo período cruza os dias visíveis (navegação por semanas). */
-  const summaryList = useMemo(() => {
+  const visibleIntervals = useMemo(() => {
     if (days.length === 0) return [];
-    const visibleStart = startOfDay(days[0]).getTime();
-    const visibleEnd = endOfDay(days[days.length - 1]).getTime();
-    return allIntervals
-      .filter(({ start, end }) => start <= visibleEnd && end >= visibleStart)
-      .map(({ demand: d, start, end }) => ({
-        name: d.name,
-        start: new Date(start),
-        end: new Date(end),
-        id: d.id,
-      }));
+    const vStart = startOfDay(days[0]).getTime();
+    const vEnd = endOfDay(days[days.length - 1]).getTime();
+    return allIntervals.filter(({ start, end }) => start <= vEnd && end >= vStart);
   }, [allIntervals, days]);
+
+  const summaryList = useMemo(() =>
+    visibleIntervals.map(({ demand: d, start, end }) => ({
+      id: d.id, name: d.name, producer: d.producer_name,
+      status: d.status, start: new Date(start), end: new Date(end),
+    })),
+    [visibleIntervals]
+  );
+
+  const dayColumnWidth = useMemo(() => {
+    if (!containerWidth) return DAY_COLUMN_MIN;
+    const avail = containerWidth - LABEL_WIDTH;
+    const ideal = Math.floor(avail / Math.max(days.length, 1));
+    return Math.max(DAY_COLUMN_MIN, Math.min(DAY_COLUMN_MAX, ideal));
+  }, [containerWidth, days.length]);
+
+  const chartBaseWidth = LABEL_WIDTH + days.length * dayColumnWidth;
+  const chartWidth = containerWidth ? Math.max(chartBaseWidth, containerWidth) : chartBaseWidth;
+  const hasOverflow = containerWidth ? chartBaseWidth > containerWidth : true;
 
   const renderBar = (demand: DemandRow, lane: number) => {
     const startAt = demand.start_at ? parseISO(demand.start_at) : parseISO(demand.due_at!);
@@ -179,141 +177,131 @@ export function DemandCalendarTimeline({
     const leftPct = (first / days.length) * 100;
     const widthPct = ((last - first + 1) / days.length) * 100;
     const top = ROW_PAD_Y + lane * (BAR_H + LANE_GAP);
-    const showLabel = widthPct >= 12;
+    const showLabel = widthPct >= 10;
+    const st = statusStyle(demand.status);
 
     return (
       <DemandTooltip key={demand.id} demand={demand} viewOnly={!!onViewDemand}>
         <button
           type="button"
           disabled={!onViewDemand}
-          className="group absolute flex items-center overflow-hidden rounded-md border border-primary/35 bg-primary/20 px-1.5 text-left shadow-sm transition-colors hover:border-primary/50 hover:bg-primary/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-60"
-          style={{
-            left: `${leftPct}%`,
-            width: `${widthPct}%`,
-            top,
-            height: BAR_H,
-            minWidth: 4,
-          }}
+          className={`group absolute flex items-center gap-1.5 overflow-hidden rounded-md border px-2 text-left shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-50 ${st.bar}`}
+          style={{ left: `${leftPct}%`, width: `${widthPct}%`, top, height: BAR_H, minWidth: 6 }}
           onClick={() => onViewDemand?.(demand)}
         >
           {showLabel && (
-            <span className="block min-w-0 truncate text-[11px] font-medium leading-tight text-foreground/95">
-              {demand.name}
-            </span>
+            <>
+              <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${st.dot}`} aria-hidden />
+              <span className="min-w-0 truncate text-[11px] font-medium leading-none text-foreground/90">
+                {demand.name}
+              </span>
+            </>
           )}
           <span className="sr-only">
-            {demand.name} — {format(startAt, "dd/MM")} a {format(dueAt, "dd/MM")}
+            {demand.name} — {format(startAt, "dd/MM")} a {format(dueAt, "dd/MM")} — {st.label}
           </span>
         </button>
       </DemandTooltip>
     );
   };
 
-  const gridBackground = (keyPrefix: string) =>
+  const gridCols = (keyPrefix: string) =>
     days.map((day, i) => {
-      const isTodayCol = isSameDay(day, today);
+      const isToday = isSameDay(day, today);
       const isWeekStart = i % 7 === 0;
-      const weekend = day.getDay() === 0 || day.getDay() === 6;
+      const isWeekend = day.getDay() === 0 || day.getDay() === 6;
       return (
         <div
           key={`${keyPrefix}-${i}`}
-          className={`pointer-events-none absolute top-0 bottom-0 border-border/30 ${isWeekStart && i > 0 ? "border-l" : ""} ${weekend ? "bg-muted/25" : ""} ${isTodayCol ? "bg-primary/[0.06]" : ""}`}
+          className={[
+            "pointer-events-none absolute bottom-0 top-0",
+            isWeekStart && i > 0 ? "border-l border-border/30" : "",
+            isWeekend ? "bg-muted/20" : "",
+            isToday ? "bg-primary/[0.07]" : "",
+          ].join(" ")}
           style={{ left: `${(i / days.length) * 100}%`, width: `${100 / days.length}%` }}
         />
       );
     });
 
-  const emptyMessage = groupByProducer
-    ? "Nenhum produtor com demandas neste intervalo."
-    : "Nenhuma demanda com início e entrega neste intervalo.";
-
   const hasData = groupByProducer ? byProducer.length > 0 : allIntervals.length > 0;
 
-  const dayColumnWidth = useMemo(() => {
-    if (!containerWidth) return DAY_COLUMN_MIN;
-    const availableForDays = containerWidth - LABEL_WIDTH;
-    const ideal = Math.floor(availableForDays / Math.max(days.length, 1));
-    return Math.max(DAY_COLUMN_MIN, Math.min(DAY_COLUMN_MAX, ideal));
-  }, [containerWidth, days.length]);
-
-  const chartBaseWidth = LABEL_WIDTH + days.length * dayColumnWidth;
-  const chartWidth = containerWidth ? Math.max(chartBaseWidth, containerWidth) : chartBaseWidth;
-  const hasHorizontalOverflow = containerWidth ? chartBaseWidth > containerWidth : true;
-
   return (
-    <TooltipProvider delayDuration={280}>
-      <Card className="overflow-hidden rounded-2xl border border-border/60 bg-card/80 shadow-sm">
-        <CardHeader className="space-y-3 border-b border-border/40 pb-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div className="space-y-1">
-              <CardTitle className="flex items-center gap-2 text-lg font-semibold tracking-tight">
-                <CalendarRange className="h-5 w-5 shrink-0 text-primary/90" aria-hidden />
+    <TooltipProvider delayDuration={200}>
+      <Card className="overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm">
+        {/* Cabeçalho */}
+        <CardHeader className="border-b border-border/40 pb-4 pt-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0 space-y-0.5">
+              <CardTitle className="flex items-center gap-2 text-base font-semibold tracking-tight">
+                <CalendarRange className="h-4 w-4 shrink-0 text-primary" aria-hidden />
                 {title}
+                {summaryList.length > 0 && (
+                  <span className="ml-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
+                    {summaryList.length}
+                  </span>
+                )}
               </CardTitle>
-              <p className="text-sm leading-relaxed text-muted-foreground">{description}</p>
+              <p className="text-xs leading-relaxed text-muted-foreground">{description}</p>
             </div>
-            <div className="flex flex-wrap items-center justify-end gap-1 sm:shrink-0">
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className="h-9 w-9"
-                onClick={goPrev}
-                aria-label="Semana anterior"
-              >
+
+            {/* Navegação */}
+            <div className="flex shrink-0 items-center gap-1">
+              <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={goPrev} aria-label="Período anterior">
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <span className="min-w-[150px] px-2 text-center text-sm font-medium tabular-nums text-foreground">
+              <span className="min-w-[140px] text-center text-sm font-semibold capitalize tabular-nums text-foreground">
                 {rangeLabel}
               </span>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className="h-9 w-9"
-                onClick={goNext}
-                aria-label="Próxima semana"
-              >
+              <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={goNext} aria-label="Próximo período">
                 <ChevronRight className="h-4 w-4" />
               </Button>
-              <Button type="button" variant="secondary" size="sm" className="h-9" onClick={goToday}>
-                Ir para hoje
+              <Button type="button" variant="outline" size="sm" className="ml-1 h-8 text-xs" onClick={goToday}>
+                Hoje
               </Button>
             </div>
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-4 pt-5">
+        <CardContent className="space-y-4 p-0 pb-5">
+          {/* Grade */}
           <div
-            ref={scrollContainerRef}
-            className={`${hasHorizontalOverflow ? "overflow-x-auto" : "overflow-x-hidden"} overflow-y-hidden rounded-xl border border-border/50 bg-muted/15 [-ms-overflow-style:none] [scrollbar-width:thin]`}
+            ref={scrollRef}
+            className={`${hasOverflow ? "overflow-x-auto" : "overflow-x-hidden"} overflow-y-hidden [-ms-overflow-style:none] [scrollbar-width:thin]`}
           >
-            <div className="min-w-max" style={{ minWidth: chartWidth }}>
+            <div style={{ minWidth: chartWidth }}>
+
               {/* Cabeçalho dos dias */}
-              <div className="flex border-b border-border/40 bg-muted/30">
+              <div className="flex border-b border-border/40 bg-muted/20">
                 <div
-                  className="sticky left-0 z-10 flex shrink-0 items-end border-r border-border/40 bg-muted/30 px-3 pb-2 pt-3"
+                  className="sticky left-0 z-10 shrink-0 border-r border-border/40 bg-muted/20 px-3 py-2.5"
                   style={{ width: LABEL_WIDTH }}
                 >
-                  <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                    {groupByProducer ? "Produtor" : "Visão"}
+                  <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                    {groupByProducer ? "Produtor" : "Período"}
                   </span>
                 </div>
-                <div className="flex min-w-0 flex-1">
+                <div className="flex flex-1">
                   {days.map((day, i) => {
                     const isToday = isSameDay(day, today);
                     const isWeekStart = i % 7 === 0;
+                    const isWeekend = day.getDay() === 0 || day.getDay() === 6;
                     return (
                       <div
                         key={i}
-                        className={`flex shrink-0 flex-col items-center justify-center gap-0.5 border-border/25 py-2 text-center ${isWeekStart && i > 0 ? "border-l border-border/50" : ""} ${isToday ? "bg-primary/[0.08]" : ""}`}
-                        style={{ minWidth: dayColumnWidth, width: dayColumnWidth, flex: "0 0 auto" }}
+                        className={[
+                          "flex shrink-0 flex-col items-center justify-center gap-0.5 py-2",
+                          isWeekStart && i > 0 ? "border-l border-border/30" : "",
+                          isWeekend ? "bg-muted/15" : "",
+                          isToday ? "bg-primary/10" : "",
+                        ].join(" ")}
+                        style={{ minWidth: dayColumnWidth, width: dayColumnWidth }}
                         title={format(day, "EEEE, d 'de' MMMM", { locale: ptBR })}
                       >
-                        <span className="text-[10px] font-medium uppercase leading-none text-muted-foreground">
+                        <span className={`text-[9px] font-bold uppercase leading-none ${isWeekend ? "text-muted-foreground/60" : "text-muted-foreground"}`}>
                           {format(day, "EEE", { locale: ptBR })}
                         </span>
-                        <span className={`text-sm font-semibold tabular-nums ${isToday ? "text-primary" : "text-foreground"}`}>
+                        <span className={`text-xs font-bold tabular-nums ${isToday ? "flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground" : isWeekend ? "text-muted-foreground/70" : "text-foreground"}`}>
                           {format(day, "d")}
                         </span>
                       </div>
@@ -322,31 +310,45 @@ export function DemandCalendarTimeline({
                 </div>
               </div>
 
+              {/* Corpo */}
               {!hasData ? (
-                <div className="flex min-h-[120px] items-center justify-center px-4 py-10 text-sm text-muted-foreground">
-                  {emptyMessage}
+                <div className="flex min-h-[100px] items-center justify-center gap-2 px-4 py-10 text-sm text-muted-foreground">
+                  <CalendarRange className="h-4 w-4 shrink-0" />
+                  {groupByProducer
+                    ? "Nenhum produtor com demandas neste período."
+                    : "Nenhuma demanda com datas definidas neste período."}
                 </div>
               ) : groupByProducer ? (
-                byProducer.map(({ producerName, demands: producerDemands }) => {
-                  const intervals = toSortedIntervals(producerDemands);
+                byProducer.map(({ producerName, demands: pd }, rowIdx) => {
+                  const intervals = toSortedIntervals(pd);
                   const laneMap = assignLanes(intervals);
-                  const lanes = laneCountFromMap(laneMap);
-                  const h = rowInnerHeight(lanes);
+                  const lanes = laneCount(laneMap);
+                  const h = rowHeight(lanes);
+                  const visibleCount = intervals.filter(({ start, end }) => {
+                    const vStart = startOfDay(days[0]).getTime();
+                    const vEnd = endOfDay(days[days.length - 1]).getTime();
+                    return start <= vEnd && end >= vStart;
+                  }).length;
+
                   return (
-                    <div
-                      key={producerName}
-                      className="flex border-b border-border/30 last:border-b-0 hover:bg-muted/20"
-                    >
+                    <div key={producerName} className={`flex border-b border-border/20 last:border-b-0 ${rowIdx % 2 === 1 ? "bg-muted/[0.04]" : ""}`}>
+                      {/* Label do produtor */}
                       <div
-                        className="sticky left-0 z-10 flex shrink-0 items-center border-r border-border/40 bg-card/95 px-3 backdrop-blur-sm"
+                        className="sticky left-0 z-10 flex shrink-0 flex-col justify-center gap-0.5 border-r border-border/40 bg-card/95 px-3 backdrop-blur-sm"
                         style={{ width: LABEL_WIDTH, minHeight: h }}
                       >
-                        <span className="line-clamp-2 text-sm font-medium text-foreground" title={producerName}>
+                        <span className="line-clamp-2 text-sm font-semibold leading-snug text-foreground" title={producerName}>
                           {producerName}
                         </span>
+                        {visibleCount > 0 && (
+                          <span className="text-[10px] font-medium text-muted-foreground">
+                            {visibleCount} demanda{visibleCount !== 1 ? "s" : ""} no período
+                          </span>
+                        )}
                       </div>
+                      {/* Barras */}
                       <div className="relative min-w-0 flex-1" style={{ minHeight: h }}>
-                        {gridBackground(`p-${producerName}`)}
+                        {gridCols(`p-${producerName}`)}
                         {intervals.map(({ demand }) => renderBar(demand, laneMap.get(demand.id) ?? 0))}
                       </div>
                     </div>
@@ -354,17 +356,22 @@ export function DemandCalendarTimeline({
                 })
               ) : (
                 (() => {
-                  const h = rowInnerHeight(singleLanes);
+                  const h = rowHeight(laneCount(singleLaneMap));
                   return (
-                    <div className="flex border-border/30 hover:bg-muted/10">
+                    <div className="flex">
                       <div
-                        className="sticky left-0 z-10 flex shrink-0 items-center border-r border-border/40 bg-card/95 px-3 backdrop-blur-sm"
+                        className="sticky left-0 z-10 flex shrink-0 flex-col justify-center gap-0.5 border-r border-border/40 bg-card/95 px-3 backdrop-blur-sm"
                         style={{ width: LABEL_WIDTH, minHeight: h }}
                       >
-                        <span className="text-sm font-medium text-foreground">Demandas no período</span>
+                        <span className="text-sm font-semibold text-foreground">Todas as demandas</span>
+                        {summaryList.length > 0 && (
+                          <span className="text-[10px] text-muted-foreground">
+                            {summaryList.length} no período
+                          </span>
+                        )}
                       </div>
                       <div className="relative min-w-0 flex-1" style={{ minHeight: h }}>
-                        {gridBackground("single")}
+                        {gridCols("single")}
                         {allIntervals.map(({ demand }) => renderBar(demand, singleLaneMap.get(demand.id) ?? 0))}
                       </div>
                     </div>
@@ -374,56 +381,66 @@ export function DemandCalendarTimeline({
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+          {/* Legenda */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-5 text-xs text-muted-foreground">
+            {Object.entries(STATUS_STYLES).map(([, { dot, label }], i) => (
+              <span key={i} className="inline-flex items-center gap-1.5">
+                <span className={`h-2 w-2 rounded-full ${dot}`} aria-hidden />
+                {label}
+              </span>
+            ))}
             <span className="inline-flex items-center gap-1.5">
-              <span className="h-2.5 w-4 rounded-sm border border-primary/35 bg-primary/20" aria-hidden />
-              Período da demanda
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span className="h-2.5 w-2 rounded-sm bg-primary/40" aria-hidden />
+              <span className="h-3.5 w-px bg-primary" aria-hidden />
               Hoje
             </span>
-            <span>Fins de semana levemente marcados.</span>
+            <span className="text-muted-foreground/60">Fins de semana em destaque leve</span>
           </div>
 
+          {/* Lista rápida */}
           {summaryList.length > 0 && (
-            <details className="group rounded-lg border border-border/40 bg-muted/20">
-              <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-sm font-medium text-foreground marker:content-none [&::-webkit-details-marker]:hidden">
+            <details className="group mx-5 rounded-xl border border-border/40 bg-muted/20">
+              <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-medium text-foreground marker:content-none [&::-webkit-details-marker]:hidden">
                 <List className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-                Lista rápida — período visível ({summaryList.length})
-                <span className="ml-auto text-xs font-normal text-muted-foreground group-open:hidden">Abrir</span>
+                Lista do período ({summaryList.length})
+                <span className="ml-auto text-xs font-normal text-muted-foreground group-open:hidden">Expandir</span>
                 <span className="ml-auto hidden text-xs font-normal text-muted-foreground group-open:inline">Fechar</span>
               </summary>
-              <div className="border-t border-border/40 px-3 py-3">
-                <ul className="grid max-h-[min(240px,40vh)] grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2">
-                  {summaryList.map((item) => (
-                    <li
-                      key={item.id}
-                      className="flex min-w-0 items-baseline justify-between gap-2 rounded-md bg-background/60 px-2.5 py-1.5 text-xs"
-                    >
-                      <span className="min-w-0 truncate font-medium text-foreground" title={item.name}>
-                        {item.name}
-                      </span>
-                      <span className="shrink-0 tabular-nums text-muted-foreground">
-                        {format(item.start, "dd/MM")} → {format(item.end, "dd/MM")}
-                      </span>
-                    </li>
-                  ))}
+              <div className="border-t border-border/30 px-4 py-3">
+                <ul className="grid max-h-[min(260px,40vh)] grid-cols-1 gap-1.5 overflow-y-auto sm:grid-cols-2">
+                  {summaryList.map((item) => {
+                    const st = statusStyle(item.status);
+                    return (
+                      <li key={item.id} className="flex min-w-0 items-center gap-2 rounded-lg bg-background/60 px-3 py-2">
+                        <span className={`h-2 w-2 shrink-0 rounded-full ${st.dot}`} aria-hidden />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-xs font-medium text-foreground">{item.name}</p>
+                          {item.producer && (
+                            <p className="truncate text-[10px] text-muted-foreground">{item.producer}</p>
+                          )}
+                        </div>
+                        <span className="shrink-0 tabular-nums text-[10px] text-muted-foreground">
+                          {format(item.start, "dd/MM")} → {format(item.end, "dd/MM")}
+                        </span>
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             </details>
           )}
 
-          <p className="text-xs text-muted-foreground">
-            {onViewDemand
-              ? "Clique numa barra para ver os detalhes. Quem puder editar verá a opção no painel."
-              : null}
-          </p>
+          {onViewDemand && (
+            <p className="px-5 text-xs text-muted-foreground">
+              Toque numa barra para ver os detalhes e editar.
+            </p>
+          )}
 
           {isLoading && (
             <div className="flex justify-center py-1" role="status" aria-live="polite">
               <span className="sr-only">Carregando</span>
-              <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              <div className="mx-5 h-1 w-full overflow-hidden rounded-full bg-muted">
+                <div className="h-full w-1/3 animate-pulse rounded-full bg-primary/40" />
+              </div>
             </div>
           )}
         </CardContent>

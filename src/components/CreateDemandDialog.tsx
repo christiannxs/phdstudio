@@ -34,6 +34,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { handleApiError } from "@/lib/errors";
 import { toast } from "sonner";
 import { ARTISTS } from "@/lib/artists";
+import { SERVICE_TYPE_LABELS } from "@/lib/demandFinancial";
 
 const createDemandSchema = z.object({
   artist: z.string().optional().or(z.literal("")),
@@ -44,6 +45,8 @@ const createDemandSchema = z.object({
   dueDate: z.string().min(1, "Data de término é obrigatória"),
   dueTime: z.string().min(1, "Horário de término é obrigatório"),
   producer: z.string().min(1, "Selecione um produtor"),
+  service_type: z.string().optional().or(z.literal("")),
+  price: z.string().optional().or(z.literal("")),
 }).refine(
   (data) => {
     const start = new Date(`${data.startDate}T${data.startTime}`);
@@ -90,6 +93,8 @@ export default function CreateDemandDialog({ onCreated, open: controlledOpen, on
       dueDate: "",
       dueTime: "",
       producer: "",
+      service_type: "",
+      price: "",
     },
   });
 
@@ -117,6 +122,7 @@ export default function CreateDemandDialog({ onCreated, open: controlledOpen, on
     const startAtISO = new Date(`${values.startDate}T${values.startTime}`).toISOString();
     const dueAtISO = dueDateTime.toISOString();
 
+    const priceValue = values.price?.trim() ? parseFloat(values.price.replace(",", ".")) : null;
     const { error } = await supabase.from("demands").insert({
       artist_name: values.artist?.trim() || null,
       name: values.name.trim(),
@@ -126,6 +132,8 @@ export default function CreateDemandDialog({ onCreated, open: controlledOpen, on
       created_by: user.id,
       start_at: startAtISO,
       due_at: dueAtISO,
+      service_type: (values.service_type?.trim() || null) as never,
+      price: isNaN(priceValue!) ? null : priceValue,
     });
     if (error) throw error;
     toast.success("Demanda criada com sucesso!");
@@ -138,6 +146,8 @@ export default function CreateDemandDialog({ onCreated, open: controlledOpen, on
       dueDate: "",
       dueTime: "",
       producer: isProducer && displayName ? displayName : "",
+      service_type: "",
+      price: "",
     });
     setOpen(false);
     setConfirmAddOpen(false);
@@ -358,6 +368,53 @@ export default function CreateDemandDialog({ onCreated, open: controlledOpen, on
                 </FormItem>
               )}
             />
+            {/* Tipo de serviço + Valor */}
+            <div className="grid grid-cols-2 gap-3">
+              <FormField
+                control={form.control}
+                name="service_type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tipo de serviço</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Opcional" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="">Não especificado</SelectItem>
+                        {Object.entries(SERVICE_TYPE_LABELS).map(([value, label]) => (
+                          <SelectItem key={value} value={value}>{label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="price"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Valor (R$)</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="0,00 — opcional"
+                        inputMode="decimal"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
             <Button
               type="submit"
               className="w-full"

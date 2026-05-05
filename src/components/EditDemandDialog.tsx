@@ -16,6 +16,7 @@ import { DemandDateRangeCalendar } from "@/components/DemandDateRangeCalendar";
 import { ARTISTS } from "@/lib/artists";
 import type { DemandRow } from "@/types/demands";
 import { PHASE_STEPS, type PhaseKey, type PhaseLabelColumn } from "@/lib/demandPhases";
+import { SERVICE_TYPE_LABELS, PAYMENT_STATUS_LABELS, PAYMENT_STATUS_STYLES, PAYMENT_METHODS, formatPrice } from "@/lib/demandFinancial";
 
 export type DemandForEdit = DemandRow;
 
@@ -53,6 +54,14 @@ export default function EditDemandDialog({
   const [dueTime, setDueTime] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [canEditDatesAndDetails, setCanEditDatesAndDetails] = useState(true);
+  // Campos financeiros
+  const [serviceType, setServiceType] = useState("");
+  const [price, setPrice] = useState("");
+  const [paymentStatus, setPaymentStatus] = useState("");
+  const [paymentDate, setPaymentDate] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("");
+  const [clientName, setClientName] = useState("");
+  const [notesFinance, setNotesFinance] = useState("");
   const [phaseChecked, setPhaseChecked] = useState<Record<PhaseKey, boolean>>({
     phase_producao: false,
     phase_gravacao: false,
@@ -89,6 +98,14 @@ export default function EditDemandDialog({
       setDueDate(due.date);
       setDueTime(due.time);
       setCanEditDatesAndDetails(true);
+      // Campos financeiros
+      setServiceType(demand.service_type ?? "");
+      setPrice(demand.price != null ? String(demand.price) : "");
+      setPaymentStatus(demand.payment_status ?? "");
+      setPaymentDate(demand.payment_date ? demand.payment_date.slice(0, 10) : "");
+      setPaymentMethod(demand.payment_method ?? "");
+      setClientName(demand.client_name ?? "");
+      setNotesFinance(demand.notes_finance ?? "");
       setPhaseChecked({
         phase_producao: demand.phase_producao,
         phase_gravacao: demand.phase_gravacao,
@@ -142,6 +159,9 @@ export default function EditDemandDialog({
           }
         : {};
 
+      const isFinanceiro = role === "financeiro";
+      const priceNum = price.trim() ? parseFloat(price.replace(",", ".")) : null;
+
       const { error } = await supabase
         .from("demands")
         .update({
@@ -152,6 +172,16 @@ export default function EditDemandDialog({
           status: status as "aguardando" | "em_producao" | "concluido",
           start_at: canEditDatesAndDetails ? new Date(`${startDate}T${startTime}`).toISOString() : demand.start_at ?? null,
           due_at: canEditDatesAndDetails ? new Date(`${dueDate}T${dueTime}`).toISOString() : demand.due_at,
+          service_type: (serviceType.trim() || null) as never,
+          price: (!isNaN(priceNum!) && priceNum != null) ? priceNum : demand.price,
+          // Campos que só financeiro edita
+          ...(isFinanceiro ? {
+            payment_status: (paymentStatus.trim() || null) as never,
+            payment_date: paymentDate ? new Date(`${paymentDate}T12:00:00`).toISOString() : null,
+            payment_method: paymentMethod.trim() || null,
+            client_name: clientName.trim() || null,
+            notes_finance: notesFinance.trim() || null,
+          } : {}),
           ...phasePayload,
         })
         .eq("id", demand.id);
@@ -293,6 +323,121 @@ export default function EditDemandDialog({
                 )}
               </CardContent>
             </Card>
+            {/* Tipo de serviço + Valor */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Tipo de serviço</Label>
+                <Select value={serviceType} onValueChange={setServiceType} disabled={readOnly}>
+                  <SelectTrigger><SelectValue placeholder="Não especificado" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Não especificado</SelectItem>
+                    {Object.entries(SERVICE_TYPE_LABELS).map(([v, l]) => (
+                      <SelectItem key={v} value={v}>{l}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Valor (R$)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0,00 — opcional"
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                  disabled={readOnly}
+                  readOnly={readOnly}
+                  className={readOnly ? "bg-muted/50" : ""}
+                />
+              </div>
+            </div>
+
+            {/* Seção financeira — visível apenas para financeiro */}
+            {(role === "financeiro" || (readOnly && demand?.payment_status)) && (
+              <Card className="border-emerald-500/30 bg-emerald-500/5">
+                <CardHeader className="pb-3 pt-4 px-4">
+                  <CardTitle className="flex items-center gap-2 text-sm font-medium text-emerald-700 dark:text-emerald-400">
+                    Controle financeiro
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-4 space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Status pagamento</Label>
+                      {role === "financeiro" && !readOnly ? (
+                        <Select value={paymentStatus} onValueChange={setPaymentStatus}>
+                          <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                          <SelectContent>
+                            {Object.entries(PAYMENT_STATUS_LABELS).map(([v, l]) => (
+                              <SelectItem key={v} value={v}>{l}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <span className={`inline-flex rounded-md border px-2 py-0.5 text-xs font-medium ${PAYMENT_STATUS_STYLES[paymentStatus] ?? "text-muted-foreground"}`}>
+                          {PAYMENT_STATUS_LABELS[paymentStatus] ?? "—"}
+                        </span>
+                      )}
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Data do pagamento</Label>
+                      <Input
+                        type="date"
+                        value={paymentDate}
+                        onChange={(e) => setPaymentDate(e.target.value)}
+                        disabled={role !== "financeiro" || readOnly}
+                        className={(role !== "financeiro" || readOnly) ? "bg-muted/50" : ""}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Forma de pagamento</Label>
+                      {role === "financeiro" && !readOnly ? (
+                        <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                          <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                          <SelectContent>
+                            {PAYMENT_METHODS.map((m) => (
+                              <SelectItem key={m} value={m}>{m}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <p className="text-sm text-foreground">{paymentMethod || "—"}</p>
+                      )}
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Cliente / Pagador</Label>
+                      <Input
+                        value={clientName}
+                        onChange={(e) => setClientName(e.target.value)}
+                        placeholder="Nome do cliente"
+                        disabled={role !== "financeiro" || readOnly}
+                        className={(role !== "financeiro" || readOnly) ? "bg-muted/50" : ""}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Observações financeiras</Label>
+                    <Textarea
+                      value={notesFinance}
+                      onChange={(e) => setNotesFinance(e.target.value)}
+                      placeholder="Notas internas para o financeiro..."
+                      disabled={role !== "financeiro" || readOnly}
+                      className={`min-h-[60px] text-sm ${(role !== "financeiro" || readOnly) ? "bg-muted/50" : ""}`}
+                    />
+                  </div>
+                  {/* Resumo de valor para financeiro */}
+                  {demand?.price != null && (
+                    <p className="text-xs text-muted-foreground">
+                      Valor registrado: <span className="font-semibold text-foreground">{formatPrice(demand.price)}</span>
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
             <div className="space-y-2">
               <Label>Produtor</Label>
               <Select

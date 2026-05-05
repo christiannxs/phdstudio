@@ -3,7 +3,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from "react
 import { supabase } from "@/integrations/supabase/client";
 import type { Enums } from "@/integrations/supabase/types";
 
-export type AppRole = "atendente" | "produtor" | "ceo" | "admin";
+export type AppRole = "atendente" | "produtor" | "ceo" | "admin" | "financeiro";
 
 interface AuthContextType {
   user: { id: string } | null;
@@ -112,7 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     await supabase.from("profiles").update({ display_name: name }).eq("user_id", userId);
     await supabase.from("user_roles").delete().eq("user_id", userId);
-    await supabase.from("user_roles").insert({ user_id: userId, role: roleValue as Enums["app_role"] });
+    await supabase.from("user_roles").insert({ user_id: userId, role: roleValue as Enums<"app_role"> });
     return { error: null };
   };
 

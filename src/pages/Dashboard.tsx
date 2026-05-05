@@ -86,7 +86,9 @@ export default function Dashboard() {
           ? "Desenvolvedor"
           : role === "ceo"
             ? "CEO"
-            : "Sem perfil";
+            : role === "financeiro"
+              ? "Financeiro"
+              : "Sem perfil";
 
   const handleStatusCardClick = (status: string) => {
     setFilterStatus((prev) => (prev === status ? "all" : status));
