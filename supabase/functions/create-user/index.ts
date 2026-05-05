@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const validRoles = ["atendente", "produtor", "ceo", "admin"];
+    const validRoles = ["atendente", "produtor", "ceo", "admin", "financeiro"];
     if (!validRoles.includes(role)) {
       return new Response(
         JSON.stringify({ error: "Role inválida" }),
