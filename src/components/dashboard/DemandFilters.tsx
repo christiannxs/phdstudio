@@ -19,6 +19,7 @@ interface DemandFiltersProps {
   setDateFilter: (v: string) => void;
   producers: string[];
   showFilters: boolean;
+  showProducerFilter?: boolean;
   showCreateButton: boolean;
   onCreated: () => void;
   /** Quando informado, o botão "Nova Demanda" chama este callback em vez de renderizar o dialog (dialog controlado pelo pai). */
@@ -34,6 +35,7 @@ export default function DemandFilters({
   setDateFilter,
   producers,
   showFilters,
+  showProducerFilter = true,
   showCreateButton,
   onCreated,
   onOpenCreateDialog,
@@ -68,17 +70,19 @@ export default function DemandFilters({
                   <SelectItem value="em_producao">Em produção</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={filterProducer} onValueChange={setFilterProducer}>
-                <SelectTrigger className="w-full sm:w-[150px] min-h-[44px] sm:min-h-0">
-                  <SelectValue placeholder="Produtor" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os produtores</SelectItem>
-                  {producers.map((name) => (
-                    <SelectItem key={name} value={name}>{name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {showProducerFilter && (
+                <Select value={filterProducer} onValueChange={setFilterProducer}>
+                  <SelectTrigger className="w-full sm:w-[150px] min-h-[44px] sm:min-h-0">
+                    <SelectValue placeholder="Produtor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os produtores</SelectItem>
+                    {producers.map((name) => (
+                      <SelectItem key={name} value={name}>{name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </>
           )}
           {showCreateButton && (

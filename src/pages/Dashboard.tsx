@@ -39,13 +39,19 @@ export default function Dashboard() {
   const canEditOrDelete = true;
   const canEditFromView = true;
 
-  if (authLoading) return <div className="flex min-h-screen items-center justify-center"><div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" /></div>;
-  if (!user) return <Navigate to="/auth" replace />;
+  if (authLoading) return <div className=”flex min-h-screen items-center justify-center”><div className=”animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full” /></div>;
+  if (!user) return <Navigate to=”/auth” replace />;
+
+  // Produtores só veem demandas atribuídas a eles ou criadas por eles
+  const visibleDemands =
+    role === “produtor” && displayName != null
+      ? demands.filter((d) => d.producer_name === displayName || d.created_by === user.id)
+      : demands;
 
   const periodStart = getPeriodStart(dateFilter);
 
   const matchesProducerAndPeriod = (d: DemandRow) => {
-    if (filterProducer !== "all" && d.producer_name !== filterProducer) return false;
+    if (filterProducer !== “all” && d.producer_name !== filterProducer) return false;
     if (periodStart) {
       // Mostra a demanda se ela estava ativa no período: termina após o início do período
       const activityDate = d.due_at ?? d.start_at ?? d.created_at;
@@ -55,26 +61,23 @@ export default function Dashboard() {
   };
 
   /** Demandas não concluídas (a lista principal nunca mistura concluídas). */
-  const filteredActive = demands.filter((d) => {
+  const filteredActive = visibleDemands.filter((d) => {
     if (!matchesProducerAndPeriod(d)) return false;
-    if (d.status === "concluido") return false;
-    if (filterStatus !== "all" && filterStatus !== "concluido" && d.status !== filterStatus) return false;
+    if (d.status === “concluido”) return false;
+    if (filterStatus !== “all” && filterStatus !== “concluido” && d.status !== filterStatus) return false;
     return true;
   });
 
   /** Só concluídas; mesmos filtros de produtor/período (status do filtro “Concluído” foi removido do dropdown). */
-  const filteredCompleted = demands.filter((d) => d.status === "concluido" && matchesProducerAndPeriod(d));
+  const filteredCompleted = visibleDemands.filter((d) => d.status === “concluido” && matchesProducerAndPeriod(d));
 
-  const dueSoonCount = countDueSoon(demands);
-  const demandsForReport =
-    role === "produtor" && displayName != null
-      ? demands.filter((d) => d.producer_name === displayName)
-      : demands;
+  const dueSoonCount = countDueSoon(visibleDemands);
+  const demandsForReport = visibleDemands;
 
   const counts = {
-    aguardando: demands.filter((d) => d.status === "aguardando").length,
-    em_producao: demands.filter((d) => d.status === "em_producao").length,
-    concluido: demands.filter((d) => d.status === "concluido").length,
+    aguardando: visibleDemands.filter((d) => d.status === “aguardando”).length,
+    em_producao: visibleDemands.filter((d) => d.status === “em_producao”).length,
+    concluido: visibleDemands.filter((d) => d.status === “concluido”).length,
   };
 
   const roleLabel =
@@ -120,7 +123,7 @@ export default function Dashboard() {
         displayName={displayName}
         userId={user.id}
         signOut={signOut}
-        demands={demands}
+        demands={visibleDemands}
         deliverables={deliverables}
         demandsForReport={demandsForReport}
         demandsLoading={demandsLoading}

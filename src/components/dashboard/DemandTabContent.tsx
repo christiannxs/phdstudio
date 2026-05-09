@@ -235,6 +235,7 @@ export default function DemandTabContent({
           setDateFilter={setDateFilter}
           producers={producers}
           showFilters={true}
+          showProducerFilter={role !== "produtor"}
           showCreateButton={role === "atendente" || role === "admin" || role === "ceo" || role === "produtor"}
           onCreated={refetch}
           onOpenCreateDialog={onOpenCreateDialog}
