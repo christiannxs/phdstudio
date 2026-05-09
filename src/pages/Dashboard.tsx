@@ -54,6 +54,11 @@ export default function Dashboard() {
     return true;
   };
 
+  const isProdutor = role === "produtor" && displayName != null;
+  const visibleDemands = isProdutor
+    ? demands.filter((d) => d.producer_name === displayName || d.created_by === user.id)
+    : demands;
+
   /** Demandas não concluídas (a lista principal nunca mistura concluídas). */
   const filteredActive = visibleDemands.filter((d) => {
     if (!matchesProducerAndPeriod(d)) return false;
@@ -65,12 +70,7 @@ export default function Dashboard() {
   /** Só concluídas; mesmos filtros de produtor/período (status do filtro “Concluído” foi removido do dropdown). */
   const filteredCompleted = visibleDemands.filter((d) => d.status === "concluido" && matchesProducerAndPeriod(d));
 
-  const dueSoonCount = countDueSoon(demands);
-
-  const isProdutor = role === "produtor" && displayName != null;
-  const visibleDemands = isProdutor
-    ? demands.filter((d) => d.producer_name === displayName || d.created_by === user.id)
-    : demands;
+  const dueSoonCount = countDueSoon(visibleDemands);
   const demandsForReport = visibleDemands;
 
   const counts = {
