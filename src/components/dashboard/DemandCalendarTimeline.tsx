@@ -230,7 +230,7 @@ export function DemandCalendarTimeline({
 
   return (
     <TooltipProvider delayDuration={200}>
-      <Card className="overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm">
+      <Card className="isolate overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm">
         {/* Cabeçalho */}
         <CardHeader className="border-b border-border/40 pb-4 pt-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
