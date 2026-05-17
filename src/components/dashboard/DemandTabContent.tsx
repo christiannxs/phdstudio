@@ -178,7 +178,7 @@ export default function DemandTabContent({
   );
 
   const canCreateDemand =
-    role === "atendente" || role === "admin" || role === "ceo" || role === "produtor";
+    role === "atendente" || role === "admin" || role === "ceo" || role === "produtor" || role === "financeiro";
 
   const demandsContent = (
     <div className="space-y-8">
@@ -236,7 +236,7 @@ export default function DemandTabContent({
           producers={producers}
           showFilters={true}
           showProducerFilter={role !== "produtor"}
-          showCreateButton={role === "atendente" || role === "admin" || role === "ceo" || role === "produtor"}
+          showCreateButton={role === "atendente" || role === "admin" || role === "ceo" || role === "produtor" || role === "financeiro"}
           onCreated={refetch}
           onOpenCreateDialog={onOpenCreateDialog}
         />
@@ -453,12 +453,10 @@ export default function DemandTabContent({
         <Tabs defaultValue={role === "financeiro" ? "financeiro" : "demandas"} className="space-y-6">
           <div className="flex items-center justify-between">
             <TabsList className="h-11 flex-wrap gap-0.5">
-              {role !== "financeiro" && (
-                <TabsTrigger value="demandas" className="gap-2 px-4">
-                  <LayoutDashboard className="h-4 w-4" />
-                  Demandas
-                </TabsTrigger>
-              )}
+              <TabsTrigger value="demandas" className="gap-2 px-4">
+                <LayoutDashboard className="h-4 w-4" />
+                Demandas
+              </TabsTrigger>
               {role !== "financeiro" && (
                 <TabsTrigger value="relatorio" className="gap-2 px-4">
                   <FileBarChart className="h-4 w-4" />
@@ -480,11 +478,9 @@ export default function DemandTabContent({
             </TabsList>
           </div>
 
-          {role !== "financeiro" && (
-            <TabsContent value="demandas" className="space-y-6 mt-0">
-              {demandsContent}
-            </TabsContent>
-          )}
+          <TabsContent value="demandas" className="space-y-6 mt-0">
+            {demandsContent}
+          </TabsContent>
 
           {role !== "financeiro" && (
             <TabsContent value="relatorio" className="mt-0">

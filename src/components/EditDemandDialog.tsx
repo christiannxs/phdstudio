@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { NotesChecklistToggle } from "@/components/ui/notes-checklist-toggle";
 import { PhaseLabelInput } from "@/components/dashboard/PhaseLabelInput";
@@ -209,6 +209,7 @@ export default function EditDemandDialog({
       <DialogContent className="max-h-[90vh] flex flex-col overflow-hidden gap-0 p-0">
         <DialogHeader className="shrink-0 px-6 pt-6 pb-2">
           <DialogTitle>{readOnly ? "Visualizar demanda" : "Editar Demanda"}</DialogTitle>
+          <DialogDescription className="sr-only">Detalhes e campos da demanda selecionada</DialogDescription>
         </DialogHeader>
         {demand && (
           <div className="overflow-y-auto flex-1 min-h-0 px-6 pb-6">

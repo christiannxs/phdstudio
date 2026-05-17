@@ -25,7 +25,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
@@ -185,6 +185,7 @@ export default function CreateDemandDialog({ onCreated, open: controlledOpen, on
 
       if (existingDemands && existingDemands.length > 0) {
         setPendingSubmitValues(values);
+        setOpen(false);
         setConfirmAddOpen(true);
         return;
       }
@@ -220,6 +221,7 @@ export default function CreateDemandDialog({ onCreated, open: controlledOpen, on
       <DialogContent className="max-h-[90vh] flex flex-col overflow-hidden gap-0 p-0">
         <DialogHeader className="shrink-0 px-6 pt-6 pb-2">
           <DialogTitle>Criar Nova Demanda</DialogTitle>
+          <DialogDescription className="sr-only">Preencha os campos para criar uma nova demanda</DialogDescription>
         </DialogHeader>
         <div className="overflow-y-auto flex-1 min-h-0 px-6 pb-6">
         <Form {...form}>
